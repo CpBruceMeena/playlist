@@ -31,6 +31,7 @@ function SavedPlaylistCard({
             key={v.id}
             src={v.thumbnailUrl}
             alt=""
+            loading="lazy"
             className={`absolute h-full w-full object-cover transition-opacity ${
               i === 0
                 ? "opacity-100"

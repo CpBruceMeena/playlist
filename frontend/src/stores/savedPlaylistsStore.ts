@@ -28,7 +28,6 @@ interface SavedPlaylistsState {
     videos: YouTubeVideo[]
   ) => { id: string } | { error: string };
   deletePlaylist: (id: string) => void;
-  getPlaylist: (id: string) => SavedPlaylist | undefined;
 }
 
 function readFromStorage(): SavedPlaylist[] {
@@ -109,8 +108,5 @@ export const useSavedPlaylistsStore = create<SavedPlaylistsState>(
       set({ playlists: updated });
     },
 
-    getPlaylist: (id) => {
-      return get().playlists.find((p) => p.id === id);
-    },
   })
 );

@@ -136,7 +136,10 @@ export function PlaylistPage() {
 
       {/* Save dialog */}
       {showSaveDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onKeyDown={(e) => e.key === "Escape" && setShowSaveDialog(false)}
+        >
           <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl">
             <h2 className="mb-1 text-lg font-semibold text-white">
               Save Playlist
