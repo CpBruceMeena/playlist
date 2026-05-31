@@ -38,9 +38,20 @@ export function ToastContainer() {
         >
           <span className="text-sm font-bold">{ICONS[toast.type]}</span>
           <span>{toast.message}</span>
+          {toast.action && (
+            <button
+              onClick={() => {
+                toast.action?.onClick();
+                removeToast(toast.id);
+              }}
+              className="ml-1 rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-white/20"
+            >
+              {toast.action.label}
+            </button>
+          )}
           <button
             onClick={() => removeToast(toast.id)}
-            className="ml-2 rounded p-0.5 opacity-60 transition-opacity hover:opacity-100"
+            className="ml-1 rounded p-0.5 opacity-60 transition-opacity hover:opacity-100"
             aria-label="Dismiss"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

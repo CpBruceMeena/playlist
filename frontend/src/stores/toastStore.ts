@@ -2,11 +2,17 @@ import { create } from "zustand";
 
 export type ToastType = "success" | "error" | "info" | "warning";
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface Toast {
   id: string;
   message: string;
   type: ToastType;
   duration: number; // ms, 0 = persistent
+  action?: ToastAction;
 }
 
 interface ToastState {

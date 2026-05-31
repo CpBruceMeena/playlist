@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout/Header";
 import { EmptyState } from "../components/feedback/EmptyState";
@@ -15,12 +15,36 @@ function SavedPlaylistCard({
   playlist,
   onLoad,
   onDelete,
+  onRename,
 }: {
   playlist: SavedPlaylist;
   onLoad: () => void;
   onDelete: () => void;
+  onRename: (newName: string) => void;
 }) {
-  const [deleting, setDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(playlist.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function startEditing() {
+    setEditValue(playlist.name);
+    setIsEditing(true);
+    // Focus on next render
+    setTimeout(() => inputRef.current?.select(), 0);
+  }
+
+  function saveEdit() {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== playlist.name) {
+      onRename(trimmed);
+    }
+    setIsEditing(false);
+  }
+
+  function cancelEdit() {
+    setEditValue(playlist.name);
+    setIsEditing(false);
+  }
 
   return (
     <div className="group flex items-center gap-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 transition-colors hover:border-neutral-700">
@@ -55,9 +79,34 @@ function SavedPlaylistCard({
 
       {/* Info */}
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-sm font-semibold text-white">
-          {playlist.name}
-        </h3>
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveEdit();
+              if (e.key === "Escape") cancelEdit();
+            }}
+            onBlur={saveEdit}
+            autoFocus
+            className="w-full rounded-md border border-blue-500/50 bg-neutral-800 px-2 py-0.5 text-sm font-semibold text-white outline-none"
+          />
+        ) : (
+          <button
+            onClick={startEditing}
+            className="group/name block w-full text-left"
+            title="Click to rename"
+          >
+            <h3 className="truncate text-sm font-semibold text-white transition-colors group-hover/name:text-blue-400">
+              {playlist.name}
+              <span className="ml-1.5 inline-block text-xs text-neutral-600 opacity-0 transition-opacity group-hover/name:opacity-100">
+                ✏️
+              </span>
+            </h3>
+          </button>
+        )}
         <p className="mt-0.5 text-xs text-neutral-500">
           {playlist.videoCount} video{playlist.videoCount !== 1 ? "s" : ""}
           {playlist.query ? ` · "${playlist.query}"` : ""}
@@ -81,20 +130,10 @@ function SavedPlaylistCard({
           Load
         </button>
         <button
-          onClick={() => {
-            setDeleting(true);
-            onDelete();
-          }}
-          disabled={deleting}
+          onClick={onDelete}
           className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:bg-red-900/50 hover:text-red-400"
         >
-          {deleting ? (
-            <span className="flex items-center gap-1">
-              <Spinner size="sm" /> Deleting
-            </span>
-          ) : (
-            "Delete"
-          )}
+          Delete
         </button>
       </div>
     </div>
@@ -109,6 +148,7 @@ export function MyPlaylistsPage() {
     isLoaded,
     loadFromStorage,
     deletePlaylist,
+    renamePlaylist,
   } = useSavedPlaylistsStore();
 
   const initQueue = usePlayerStore((s) => s.initQueue);
@@ -132,12 +172,43 @@ export function MyPlaylistsPage() {
   };
 
   const handleDeletePlaylist = (id: string, name: string) => {
-    deletePlaylist(id);
+    // Use a closure flag to distinguish Undo from dismiss
+    let undoClicked = false;
+
     addToast({
       message: `Deleted "${name}"`,
       type: "info",
-      duration: 2000,
+      duration: 5000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          undoClicked = true;
+          addToast({
+            message: `Restored "${name}"`,
+            type: "success",
+            duration: 2000,
+          });
+        },
+      },
     });
+
+    // Actually delete after the toast duration (with small buffer)
+    setTimeout(() => {
+      if (!undoClicked) {
+        deletePlaylist(id);
+      }
+    }, 5500);
+  };
+
+  const handleRenamePlaylist = (id: string, newName: string) => {
+    const success = renamePlaylist(id, newName);
+    if (success) {
+      addToast({
+        message: `Renamed to "${newName}"`,
+        type: "success",
+        duration: 2000,
+      });
+    }
   };
 
   if (!isLoaded) {
@@ -186,6 +257,9 @@ export function MyPlaylistsPage() {
                 onLoad={() => handleLoadPlaylist(playlist)}
                 onDelete={() =>
                   handleDeletePlaylist(playlist.id, playlist.name)
+                }
+                onRename={(newName) =>
+                  handleRenamePlaylist(playlist.id, newName)
                 }
               />
             ))}

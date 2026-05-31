@@ -28,6 +28,7 @@ interface SavedPlaylistsState {
     videos: YouTubeVideo[]
   ) => { id: string } | { error: string };
   deletePlaylist: (id: string) => void;
+  renamePlaylist: (id: string, newName: string) => boolean;
 }
 
 function readFromStorage(): SavedPlaylist[] {
@@ -102,10 +103,24 @@ export const useSavedPlaylistsStore = create<SavedPlaylistsState>(
     deletePlaylist: (id) => {
       const current = get().playlists;
       const updated = current.filter((p) => p.id !== id);
-      if (updated.length === current.length) return; // nothing changed
+      if (updated.length === current.length) return;
 
       writeToStorage(updated);
       set({ playlists: updated });
+    },
+
+    renamePlaylist: (id, newName) => {
+      const current = get().playlists;
+      const updated = current.map((p) =>
+        p.id === id ? { ...p, name: newName.trim(), updatedAt: new Date().toISOString() } : p
+      );
+      // If nothing changed (id not found), return false
+      if (updated.every((p, i) => p === current[i])) return false;
+
+      const success = writeToStorage(updated);
+      if (!success) return false;
+      set({ playlists: updated });
+      return true;
     },
 
   })

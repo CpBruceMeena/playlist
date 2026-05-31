@@ -39,7 +39,8 @@ export function PlaylistPage() {
   const activeVideos = queue.length > 0 ? queue : videos;
 
   const handleSave = useCallback(() => {
-    setPlaylistName("My Playlist");
+    const q = useFilterStore.getState().query;
+    setPlaylistName(q || "My Playlist");
     setSaveError(null);
     setShowSaveDialog(true);
   }, []);
@@ -106,7 +107,7 @@ export function PlaylistPage() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
-      <Header showActions onSave={handleSave} />
+      <Header onBack={() => navigate("/")} showActions onSave={handleSave} />
 
       <main className="mx-auto max-w-6xl px-4 py-6">
         <div className="flex flex-col gap-6 lg:flex-row">
