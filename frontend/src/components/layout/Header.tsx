@@ -7,7 +7,7 @@ interface HeaderProps {
   showActions?: boolean;
 }
 
-export function Header({ onSave, onShare, showActions = false }: HeaderProps) {
+export function Header({ onBack, onSave, onShare, showActions = false }: HeaderProps) {
   const location = useLocation();
 
   const navLinks = [
