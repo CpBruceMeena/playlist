@@ -13,6 +13,9 @@ export interface YouTubeVideo {
   publishedAt: string;
   tags: string[];
   videoType: VideoType;
+  // Singer attribution (multi-singer feature)
+  singerId?: string;
+  singerName?: string;
 }
 
 export type VideoType = "music" | "live" | "shorts" | "standard";
@@ -115,6 +118,35 @@ export interface UserProfile {
   email: string;
   name: string;
   avatarUrl: string;
+}
+
+// ─── Singer Types ──────────────────────────────────────────────
+export interface Singer {
+  id: string;
+  name: string;
+  genre: string;
+  thumbnailUrl: string;
+  youtubeChannelId: string;
+  popularityScore: number;
+  isActive: boolean;
+}
+
+export interface SingerResponse {
+  singers: Singer[];
+  genres: string[];
+}
+
+export interface MultiSingerRequest {
+  singerIds: string[];
+  resultsPerSinger: number;
+  filters: FilterCriteria;
+}
+
+export interface MultiSingerResponse {
+  videos: YouTubeVideo[];
+  quotaUsed: number;
+  perSingerResults: Record<string, number>;
+  singerNames: Record<string, string>;
 }
 
 // ─── Player Types ──────────────────────────────────────────────

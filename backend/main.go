@@ -13,6 +13,7 @@ import (
 	"playlist-backend/config"
 	"playlist-backend/middleware"
 	"playlist-backend/routes"
+	"playlist-backend/services"
 	"playlist-backend/structs"
 )
 
@@ -35,8 +36,14 @@ func main() {
 		&structs.User{},
 		&structs.Playlist{},
 		&structs.PlaylistVideo{},
+		&structs.Singer{},
 	); err != nil {
 		log.Fatalf("Failed to auto-migrate: %v", err)
+	}
+
+	// Seed curated singers into database
+	if err := services.SeedSingers(db); err != nil {
+		log.Printf("Warning: failed to seed initial singers: %v", err)
 	}
 
 	// Initialize YouTube client

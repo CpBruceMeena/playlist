@@ -65,3 +65,24 @@ type PlaylistVideo struct {
 func (PlaylistVideo) TableName() string {
 	return "playlist_videos"
 }
+
+// Singer represents a curated singer/artist
+// Stored in DB for quick access and selection
+type Singer struct {
+	ID               string `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Name             string `gorm:"type:varchar(255);not null;index:idx_singers_name" json:"name"`
+	Genre            string `gorm:"type:varchar(100);not null;index:idx_singers_genre" json:"genre"`
+	ThumbnailURL     string `gorm:"type:varchar(500);column:thumbnail_url" json:"thumbnailUrl"`
+	YouTubeChannelID string `gorm:"type:varchar(100);column:youtube_channel_id" json:"youtubeChannelId"`
+	Description      string `gorm:"type:text" json:"description"`
+	PopularityScore  int    `gorm:"column:popularity_score;default:0" json:"popularityScore"`
+	IsActive         bool   `gorm:"column:is_active;default:true" json:"isActive"`
+
+	CreatedAt time.Time      `gorm:"column:created_at;autoCreateTime" json:"-"`
+	UpdatedAt time.Time      `gorm:"column:updated_at;autoUpdateTime" json:"-"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+func (Singer) TableName() string {
+	return "singers"
+}

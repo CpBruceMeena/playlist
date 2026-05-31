@@ -143,7 +143,14 @@ export function QueueItem({
         {/* Video info */}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm text-neutral-200">{video.title}</p>
-          <p className="truncate text-xs text-neutral-500">{video.channelTitle}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="truncate text-xs text-neutral-500">{video.channelTitle}</p>
+            {video.singerName && (
+              <span className="shrink-0 rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400">
+                {video.singerName}
+              </span>
+            )}
+          </div>
         </div>
       </button>
     </div>

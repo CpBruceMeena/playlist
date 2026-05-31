@@ -20,7 +20,7 @@ type YouTubeVideo struct {
 	ChannelID       string    `json:"channelId"`
 	ChannelTitle    string    `json:"channelTitle"`
 	ThumbnailURL    string    `json:"thumbnailUrl"`
-	Duration        string    `json:"duration"`        // ISO 8601
+	Duration        string    `json:"duration"`
 	DurationSeconds int       `json:"durationSeconds"`
 	ViewCount       int64     `json:"viewCount"`
 	LikeCount       int64     `json:"likeCount"`
@@ -45,7 +45,7 @@ type FilterCriteria struct {
 
 // UploadDate range
 type UploadDate struct {
-	Type  string  `json:"type"` // "any", "last_week", "last_month", "last_year", "custom"
+	Type  string  `json:"type"`
 	Start *string `json:"start,omitempty"`
 	End   *string `json:"end,omitempty"`
 }
@@ -99,6 +99,39 @@ type UserProfile struct {
 	Email     string `json:"email"`
 	Name      string `json:"name"`
 	AvatarURL string `json:"avatarUrl"`
+}
+
+// --- Multi-Singer Types ---
+
+// SingerResponse is the response for GET /api/v1/singers
+type SingerResponse struct {
+	Singers []SingerListItem `json:"singers"`
+	Genres  []string         `json:"genres"`
+}
+
+// SingerListItem is a single singer in the list response
+type SingerListItem struct {
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	Genre            string `json:"genre"`
+	ThumbnailURL     string `json:"thumbnailUrl"`
+	YouTubeChannelID string `json:"youtubeChannelId"`
+	PopularityScore  int    `json:"popularityScore"`
+}
+
+// MultiSingerRequest is the request for POST /api/v1/generate/multi-singer
+type MultiSingerRequest struct {
+	SingerIDs        []string       `json:"singerIds" binding:"required,min=2,max=5"`
+	ResultsPerSinger int            `json:"resultsPerSinger" binding:"required,min=3,max=15"`
+	Filters          FilterCriteria `json:"filters"`
+}
+
+// MultiSingerResponse is the response for POST /api/v1/generate/multi-singer
+type MultiSingerResponse struct {
+	Videos          []YouTubeVideo    `json:"videos"`
+	QuotaUsed       int               `json:"quotaUsed"`
+	PerSingerResults map[string]int   `json:"perSingerResults"`
+	SingerNames     map[string]string `json:"singerNames"`
 }
 
 // APIError represents a standard error response

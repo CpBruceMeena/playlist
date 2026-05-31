@@ -19,6 +19,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient) {
 	// Initialize handlers
 	healthHandler := handlers.NewHealthHandler(db)
 	generateHandler := handlers.NewGenerateHandler(db, ytClient, filterService)
+	singersHandler := handlers.NewSingersHandler(db)
 
 	// Apply rate limiter (10 requests per minute per IP)
 	rateLimiter := middleware.NewRateLimiter(10, 1*time.Minute)
@@ -31,5 +32,11 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient) {
 	v1 := r.Group("/api/v1")
 	{
 		v1.POST("/generate", generateHandler.Generate)
+
+		// Singer routes
+		v1.GET("/singers", singersHandler.ListSingers)
+
+		// Multi-singer generation
+		v1.POST("/generate/multi-singer", generateHandler.GenerateMultiSinger)
 	}
 }

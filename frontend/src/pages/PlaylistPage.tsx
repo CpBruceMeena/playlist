@@ -12,6 +12,7 @@ import { usePlayerStore } from "../stores/playerStore";
 import { useSavedPlaylistsStore } from "../stores/savedPlaylistsStore";
 import { useToastStore } from "../stores/toastStore";
 import { useFilterStore } from "../stores/filterStore";
+import { useSingerStore, hasSingerAttribution } from "../stores/singerStore";
 
 export function PlaylistPage() {
   const navigate = useNavigate();
@@ -28,6 +29,8 @@ export function PlaylistPage() {
   const query = useFilterStore((s) => s.query);
   const savePlaylist = useSavedPlaylistsStore((s) => s.savePlaylist);
   const addToast = useToastStore((s) => s.addToast);
+  const singerNames = useSingerStore((s) => s.singerNames);
+  const clearGenerated = useSingerStore((s) => s.clearGenerated);
 
   // Save dialog state
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -84,6 +87,9 @@ export function PlaylistPage() {
     }
   }, [playlistName, getFilterPayload, query, activeVideos, savePlaylist, addToast]);
 
+  const isMultiSinger = hasSingerAttribution(queue);
+  const singerCount = isMultiSinger ? Object.keys(singerNames).length : 0;
+
   // If no videos, show empty state
   if (videos.length === 0 && queue.length === 0 && !error) {
     return (
@@ -107,9 +113,36 @@ export function PlaylistPage() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
-      <Header onBack={() => navigate("/")} showActions onSave={handleSave} />
+      <Header onBack={() => {
+        clearGenerated();
+        navigate("/");
+      }} showActions onSave={handleSave} />
 
       <main className="animate-page-in mx-auto max-w-6xl px-4 py-6">
+        {/* Singer attribution banner */}
+        {isMultiSinger && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-blue-900/40 bg-blue-950/20 px-4 py-3">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 shrink-0">
+              <path d="M9 18V5l12-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
+            </svg>
+            <span className="text-xs font-medium text-blue-300">
+              Combined from {singerCount} singer{singerCount !== 1 ? "s" : ""}:
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(singerNames).map(([id, name]) => (
+                <span
+                  key={id}
+                  className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-medium text-blue-300"
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-6 lg:flex-row">
           {/* Player section */}
           <div className="flex-1">
