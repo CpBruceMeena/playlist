@@ -10,6 +10,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/playlist/new" element={<PlaylistPage />} />
         <Route path="/playlist/:id" element={<PlaylistPage />} />
         <Route path="/playlist" element={<PlaylistPage />} />
         <Route path="/my-playlists" element={<MyPlaylistsPage />} />

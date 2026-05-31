@@ -73,13 +73,14 @@ export function QueueItem({
 
   return (
     <div className="relative">
-      {/* Drop indicator line */}
+      {/* Drop indicator line with highlight */}
       {isDropTarget && (
         <div
           className="absolute -top-px left-0 right-0 z-10"
           aria-hidden="true"
         >
-          <div className="mx-2 h-0.5 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.5)]" />
+          <div className="mx-2 h-0.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+          <div className="mx-2 mt-[-2px] h-4 rounded-lg bg-blue-500/10" />
         </div>
       )}
 
@@ -94,13 +95,14 @@ export function QueueItem({
           isActive
             ? "bg-blue-600/10 ring-1 ring-blue-500/30"
             : "hover:bg-neutral-800"
-        } ${isDraggable ? "select-none" : ""}`}
+        } ${isDropTarget ? "ring-1 ring-blue-500/20" : ""} ${isDraggable ? "select-none" : ""}`}
       >
         {/* Drag handle — larger touch target */}
         {isDraggable && (
           <span
-            className="flex cursor-grab items-center justify-center rounded-md p-1.5 text-neutral-600 hover:bg-neutral-800 hover:text-neutral-400 active:cursor-grabbing shrink-0"
+            className="flex cursor-grab items-center justify-center rounded-md p-1.5 text-neutral-600 hover:bg-neutral-800 hover:text-neutral-400 active:cursor-grabbing shrink-0 transition-colors"
             aria-label="Drag to reorder"
+            title="Drag to reorder"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="8" y1="6" x2="16" y2="6" />

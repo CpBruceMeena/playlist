@@ -47,7 +47,7 @@ function SavedPlaylistCard({
   }
 
   return (
-    <div className="group flex items-center gap-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 transition-colors hover:border-neutral-700">
+    <div className="group relative flex items-center gap-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/5">
       {/* Thumbnail collage */}
       <div className="relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-lg">
         {playlist.videos.slice(0, 3).map((v, i) => (
@@ -227,7 +227,7 @@ export function MyPlaylistsPage() {
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
       <Header />
-      <main className="mx-auto max-w-3xl px-4 pt-20">
+      <main className="animate-page-in mx-auto max-w-3xl px-4 pt-20">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-white">My Playlists</h1>
           <p className="mt-1 text-sm text-neutral-400">

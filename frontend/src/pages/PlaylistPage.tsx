@@ -109,7 +109,7 @@ export function PlaylistPage() {
     <div className="min-h-screen bg-neutral-950 text-white">
       <Header onBack={() => navigate("/")} showActions onSave={handleSave} />
 
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <main className="animate-page-in mx-auto max-w-6xl px-4 py-6">
         <div className="flex flex-col gap-6 lg:flex-row">
           {/* Player section */}
           <div className="flex-1">
@@ -141,7 +141,7 @@ export function PlaylistPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
           onKeyDown={(e) => e.key === "Escape" && setShowSaveDialog(false)}
         >
-          <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl">
+          <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl animate-in">
             <h2 className="mb-1 text-lg font-semibold text-white">
               Save Playlist
             </h2>

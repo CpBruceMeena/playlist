@@ -24,7 +24,21 @@ const SUGGESTIONS = [
 export function HomePage() {
   const navigate = useNavigate();
   const { query, setQuery, resetFilters } = useFilterStore();
-  const { generate, isGenerating, error, videos, clearError } = usePlaylistStore();
+  const {
+    generate,
+    isGenerating,
+    error,
+    videos,
+    clearError,
+    clearPlaylist,
+  } = usePlaylistStore();
+
+  // Clear stale playlist state when returning to home (prevents auto-redirect)
+  useEffect(() => {
+    if (videos.length > 0) {
+      clearPlaylist();
+    }
+  }, []);
 
   function handleSubmit() {
     if (!query.trim() || isGenerating) return;
@@ -47,7 +61,7 @@ export function HomePage() {
   // Navigate to playlist page when generation completes
   useEffect(() => {
     if (videos.length > 0 && !isGenerating) {
-      navigate("/playlist/new");
+      navigate("/playlist");
     }
   }, [videos, isGenerating, navigate]);
 
@@ -55,7 +69,7 @@ export function HomePage() {
     <div className="min-h-screen bg-neutral-950 text-white">
       <Header />
 
-      <main className="mx-auto max-w-3xl px-4 pt-16 sm:pt-24">
+      <main className="animate-page-in mx-auto max-w-3xl px-4 pt-16 sm:pt-24">
         {/* Hero section */}
         <div className="text-center">
           <div className="mb-6 inline-flex items-center justify-center rounded-2xl bg-blue-500/10 px-4 py-2">
@@ -65,7 +79,7 @@ export function HomePage() {
           </div>
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
             Generate the perfect{" "}
-            <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
               playlist
             </span>
           </h1>

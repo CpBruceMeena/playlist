@@ -22,9 +22,11 @@ export function YouTubePlayer({
 
   // Auto-advance to next video on end
   const handleEnd = () => {
+    // Mark as playing so the cueVideoById effect will auto-play the next video
+    usePlayerUIStore.getState().setPlaying(true);
     const nextVideo = next();
     if (nextVideo) {
-      // The useEffect in the hook will load the next video via currentIndex change
+      // The useEffect in the hook will cue + play the next video via currentIndex change
     }
   };
 
@@ -34,7 +36,7 @@ export function YouTubePlayer({
     next();
   };
 
-  const { isPlayerReady, seekTo } = useYouTubePlayer(containerId, {
+  const { isPlayerReady, seekTo, togglePlay } = useYouTubePlayer(containerId, {
     onEnd: handleEnd,
     onError: handleError,
   });
@@ -84,6 +86,7 @@ export function YouTubePlayer({
         currentTime={currentTime}
         duration={videoDuration}
         onSeek={seekTo}
+        onTogglePlay={togglePlay}
       />
 
       {/* Progress bar */}

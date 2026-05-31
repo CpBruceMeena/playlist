@@ -123,7 +123,6 @@ export function useYouTubePlayer(
         cc_load_policy: 0,
         fs: 0,
         playsinline: 1,
-        origin: window.location.origin,
       },
       events: {
         onReady: () => {
@@ -176,16 +175,21 @@ export function useYouTubePlayer(
   }, [volume, isMuted, isPlayerReady]);
 
   // Load new video when currentIndex changes
+  // cueVideoById doesn't auto-play — play only if user was already playing
   useEffect(() => {
     if (!playerRef.current || !isPlayerReady) return;
     const video = queue[currentIndex];
     if (video) {
-      playerRef.current.loadVideoById(video.id);
+      playerRef.current.cueVideoById(video.id);
       setCurrentTime(0);
+      // If user was playing, start the new video immediately
+      if (isPlaying) {
+        playerRef.current.playVideo();
+      }
     }
   }, [currentIndex, isPlayerReady]);
 
-  // Sync play/pause (but not on index change since loadVideoById auto-plays)
+  // Sync play/pause state (doesn't fire on index change — handled above)
   useEffect(() => {
     if (!playerRef.current || !isPlayerReady) return;
     if (isPlaying) {
@@ -227,12 +231,26 @@ export function useYouTubePlayer(
     return () => clearInterval(checkDuration);
   }, [isPlayerReady, currentIndex]);
 
+  // Direct play/pause — called directly from user gestures, bypasses async useEffect
   const playVideo = useCallback(() => {
     usePlayerStore.getState().play();
+    playerRef.current?.playVideo();
   }, []);
 
   const pauseVideo = useCallback(() => {
     usePlayerStore.getState().pause();
+    playerRef.current?.pauseVideo();
+  }, []);
+
+  const togglePlay = useCallback(() => {
+    const state = usePlayerStore.getState();
+    if (state.isPlaying) {
+      state.pause();
+      playerRef.current?.pauseVideo();
+    } else {
+      state.play();
+      playerRef.current?.playVideo();
+    }
   }, []);
 
   const seekTo = useCallback((seconds: number) => {
