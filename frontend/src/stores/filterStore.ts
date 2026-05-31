@@ -40,7 +40,7 @@ interface FilterState {
 const initialFilters = {
   durationMin: undefined as number | undefined,
   durationMax: undefined as number | undefined,
-  videoTypes: ["music", "live", "shorts", "standard"] as VideoType[],
+  videoTypes: ["music", "standard"] as VideoType[],
   includeKeywords: [] as string[],
   excludeKeywords: [] as string[],
   uploadDate: { type: "any" } as UploadDateRange,

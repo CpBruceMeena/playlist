@@ -75,6 +75,9 @@ export function HomePage() {
   }, [videos, isGenerating, navigate]);
 
   const hasSingers = selectedSingerIds.length > 0;
+  const selectedSingerObjects = singers.filter((s) =>
+    selectedSingerIds.includes(s.id)
+  );
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
@@ -111,19 +114,21 @@ export function HomePage() {
             suggestions={SUGGESTIONS}
           />
 
-          {/* Action row: Singers button + active filters summary */}
-          <div className="flex items-center gap-3">
+          {/* Action row: compact singer controls + active filters */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Singer button — compact pill */}
             <button
               onClick={() => setShowSingerDrawer(true)}
-              className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-medium transition-all duration-150 ${
-                hasSingers
-                  ? "border-blue-500/50 bg-blue-600/15 text-blue-300 hover:bg-blue-600/25"
-                  : "border-neutral-700 bg-neutral-800/50 text-neutral-300 hover:bg-neutral-700 hover:text-white"
-              }`}
+              className={
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-150 " +
+                (hasSingers
+                  ? "border-blue-500/40 bg-blue-600/15 text-blue-300 hover:bg-blue-600/25"
+                  : "border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200")
+              }
             >
               <svg
-                width="15"
-                height="15"
+                width="12"
+                height="12"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -137,54 +142,48 @@ export function HomePage() {
               </svg>
               Singers
               {hasSingers && (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/30 text-[11px] font-bold text-blue-200">
+                <span className="-mr-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500/40 text-[10px] font-bold text-blue-200">
                   {selectedSingerIds.length}
                 </span>
               )}
             </button>
 
-            <ActiveFilterBar />
-          </div>
-
-          {/* Selected singer chips — visible outside the drawer */}
-          {selectedSingerIds.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-medium text-neutral-500 shrink-0">
-                Singers:
+            {/* Selected singer chips — inline right after the button */}
+            {selectedSingerObjects.map((singer) => (
+              <span
+                key={singer.id}
+                className="inline-flex items-center gap-1 rounded-full border border-blue-500/25 bg-blue-600/8 px-2 py-0.5 text-xs font-medium text-blue-300"
+              >
+                {singer.name}
+                <button
+                  onClick={() => {
+                    useSingerStore.getState().toggleSinger(singer.id);
+                  }}
+                  className="rounded-full p-0.5 text-blue-300/50 transition-colors hover:bg-blue-500/20 hover:text-blue-200"
+                  aria-label={"Remove " + singer.name}
+                >
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M3 3l6 6M9 3l-6 6" />
+                  </svg>
+                </button>
               </span>
-              {singers
-                .filter((s) => selectedSingerIds.includes(s.id))
-                .map((singer) => (
-                  <span
-                    key={singer.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-600/10 px-2.5 py-1 text-xs font-medium text-blue-300 transition-all duration-150"
-                  >
-                    {singer.name}
-                    <button
-                      onClick={() => {
-                        const store = useSingerStore.getState();
-                        store.toggleSinger(singer.id);
-                      }}
-                      className="ml-0.5 rounded-full p-0.5 text-blue-300/60 transition-colors hover:bg-blue-500/20 hover:text-blue-200"
-                      aria-label={`Remove ${singer.name}`}
-                    >
-                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                        <path d="M3 3l6 6M9 3l-6 6" />
-                      </svg>
-                    </button>
-                  </span>
-                ))}
+            ))}
+
+            {/* Clear all link */}
+            {hasSingers && (
               <button
                 onClick={() => {
-                  const store = useSingerStore.getState();
-                  store.clearSelection();
+                  useSingerStore.getState().clearSelection();
                 }}
-                className="text-[11px] font-medium text-neutral-500 transition-colors hover:text-neutral-300"
+                className="text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-300"
               >
                 Clear all
               </button>
-            </div>
-          )}
+            )}
+
+            {/* Active filter chips */}
+            <ActiveFilterBar />
+          </div>
 
           {/* Filters */}
           <FilterPanel />

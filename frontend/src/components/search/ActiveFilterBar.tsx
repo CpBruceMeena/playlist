@@ -13,6 +13,13 @@ const UPLOAD_LABELS: Record<string, string> = {
   last_year: "Past year",
 };
 
+const VIEW_LABELS: Record<number, string> = {
+  1000: "1K+",
+  10000: "10K+",
+  100000: "100K+",
+  1000000: "1M+",
+};
+
 export function ActiveFilterBar() {
   const {
     isExpanded,
@@ -26,26 +33,31 @@ export function ActiveFilterBar() {
     maxResults,
     safeSearch,
     togglePanel,
-    getActiveFilterCount,
   } = useFilterStore();
 
-  const activeCount = getActiveFilterCount();
-
-  // Don't render if panel is expanded (filters are visible) or no filters active
-  if (isExpanded || activeCount === 0) return null;
+  // Don't render when the panel is already expanded
+  if (isExpanded) return null;
 
   const chips: { label: string; key: string }[] = [];
 
-  if (durationMin !== undefined || durationMax !== undefined) {
-    const range = formatRange(durationMin, durationMax);
-    if (range) chips.push({ label: `Duration: ${range}`, key: "duration" });
-  }
-
-  if (videoTypes.length < 4) {
+  // Default-on states
+  if (videoTypes.length === 4) {
+    chips.push({ label: "All types", key: "types-all" });
+  } else if (videoTypes.length < 4) {
     const typeStr = videoTypes
       .map((t) => t.charAt(0).toUpperCase() + t.slice(1))
       .join(", ");
     chips.push({ label: `Type: ${typeStr}`, key: "types" });
+  }
+
+  if (safeSearch) {
+    chips.push({ label: "Safe: On", key: "safe-on" });
+  }
+
+  // Non-default states
+  if (durationMin !== undefined || durationMax !== undefined) {
+    const range = formatRange(durationMin, durationMax);
+    if (range) chips.push({ label: `Duration: ${range}`, key: "duration" });
   }
 
   if (uploadDate.type !== "any") {
@@ -70,7 +82,7 @@ export function ActiveFilterBar() {
   }
 
   if (minViews !== undefined) {
-    const viewLabel = minViews >= 1000000 ? `${minViews / 1000000}M+` : minViews >= 1000 ? `${minViews / 1000}K+` : `${minViews}+`;
+    const viewLabel = VIEW_LABELS[minViews] ?? `${minViews}+`;
     chips.push({ label: `Views: ${viewLabel}`, key: "views" });
   }
 
@@ -79,27 +91,24 @@ export function ActiveFilterBar() {
   }
 
   if (!safeSearch) {
-    chips.push({ label: "Safe search off", key: "safe" });
+    chips.push({ label: "Safe search off", key: "safe-off" });
   }
 
   if (chips.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900/30 px-3 py-2">
-      <span className="text-xs font-medium text-neutral-500 shrink-0">
-        Active filters:
-      </span>
+    <div className="inline-flex flex-wrap items-center gap-1.5">
       {chips.map((chip) => (
         <span
           key={chip.key}
-          className="inline-flex items-center rounded-md bg-blue-600/10 px-2 py-0.5 text-xs text-blue-400"
+          className="inline-flex items-center rounded-full border border-neutral-700/50 bg-neutral-800/40 px-2 py-0.5 text-xs font-medium text-neutral-400"
         >
           {chip.label}
         </span>
       ))}
       <button
         onClick={togglePanel}
-        className="ml-auto text-xs text-blue-500 transition-colors hover:text-blue-400 shrink-0"
+        className="text-xs font-medium text-blue-500/70 transition-colors hover:text-blue-400"
       >
         Edit
       </button>
