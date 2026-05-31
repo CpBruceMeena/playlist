@@ -11,6 +11,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/playlist/:id" element={<PlaylistPage />} />
+        <Route path="/playlist" element={<PlaylistPage />} />
         <Route path="/my-playlists" element={<MyPlaylistsPage />} />
         <Route path="/p/:shareId" element={<SharedPlaylistPage />} />
       </Routes>

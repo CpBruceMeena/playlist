@@ -445,117 +445,82 @@
 
 ---
 
-## Phase M3: Accounts (Week 4-5 — 7 days)
+## Phase M3: Save & Share Playlists (LocalStorage) — ✅ Complete
 
-> **Duration**: 7 days | **Dependencies**: M0 complete (needs DB)
+> **Duration**: 2 days | **Dependencies**: M2 complete
+>
+> **Note**: Original M3 (Accounts with Google OAuth, My Playlists page, Shared Playlist) put **ON HOLD**. Auth (OAuth) is deferred indefinitely. YouTube Export (M3.5) requires OAuth and is also on hold.
+>
+> **What we built**: localStorage-based playlist persistence with save dialog, My Playlists page, load/delete. Full spec at `cabinet/cpo/feature-manager/feature-m3-save-share/`.
 
-### Day 20 — Auth Server
+### Completed Tasks
 
-- [ ] **M3.1** — Implement Google OAuth PKCE flow (server)
-  - Output: `auth.service.ts`, `auth.controller.ts` | Dependencies: M0.4, M0.6
-  - Endpoints: `POST /api/v1/auth/google` (init), `POST /api/v1/auth/google/callback` (complete), `POST /api/v1/auth/refresh`
-  - Reference: `implementation-architecture.md §8.1`
+- [x] **M3.1** — Build `savedPlaylistsStore.ts` (Zustand + localStorage)
+  - File: `frontend/src/stores/savedPlaylistsStore.ts`
+  - Features: CRUD operations, localStorage persistence, max 50 playlists, storage error handling
 
-- [ ] **M3.2** — Implement auth middleware (JWT verify)
-  - Output: `auth.middleware.ts` | Dependencies: M3.1
-  - Functions: `authMiddleware` (required), `optionalAuth` (optional)
-  - Features: JWT verification, token expiry handling, refresh flow
+- [x] **M3.2** — Build SavedPlaylistCard component (inline in MyPlaylistsPage)
+  - Thumbnail collage, video count badge, name, date, Load/Delete buttons
 
-- [ ] **M3.3** — Add rate limiting on auth endpoints
-  - Output: Update `rateLimiter.ts` | Dependencies: M1.5
-  - Config: 5 req/min per IP on `/auth/google` and `/auth/google/callback`
+- [x] **M3.3** — Build MyPlaylistsPage (localStorage-based)
+  - File: `frontend/src/pages/MyPlaylistsPage.tsx`
+  - Features: Saved playlist list with Load/Delete, loading state, EmptyState fallback
 
-### Day 21 — Auth UI
+- [x] **M3.4** — Build save dialog with name prompt
+  - Inline in `PlaylistPage.tsx`: modal overlay with Input + confirm/cancel
+  - Keyboard: Enter to save, Escape to close
 
-- [ ] **M3.4** — Build GoogleSignInButton component
-  - Output: `GoogleSignInButton.tsx` | Dependencies: M0.18
-  - Design: Google branding (G icon + "Sign in with Google"), loading state during redirect
+- [x] **M3.5** — Playlist loading from localStorage
+  - Flow: Click Load → initQueue(savedVideos) → navigate to /playlist → toast confirmation
 
-- [ ] **M3.5** — Build AuthModal component
-  - Output: `AuthModal.tsx` | Dependencies: M3.4
-  - Triggers: Save button (if guest), Share button (if guest), My Playlists (if guest)
-  - Content: "Save your playlists" + Google Sign In button + "No thanks, continue as guest"
+- [x] **M3.6** — "My Playlists" link in Header
+  - Already existed from M0.17 — confirmed working
 
-- [ ] **M3.6** — Build authStore with login/logout/refresh
-  - Output: `authStore.ts` | Dependencies: M0.16, M3.1
-  - Actions: `login()`, `handleCallback()`, `logout()`, `refreshToken()`, `checkSession()`
+### Blocked (Requires OAuth)
 
-- [ ] **M3.7** — Build auth API functions
-  - Output: `client/src/api/auth.ts` | Dependencies: M0.12
-  - Functions: `initiateGoogleAuth()`, `handleAuthCallback(code, verifier)`, `refreshToken()`
+- [ ] **M3.7-M3.9** — YouTube Export — BLOCKED (requires OAuth re-introduction)
+  - See `cabinet/cpo/feature-manager/feature-m3-youtube-export/plan.md`
 
-### Day 22 — Playlist Save
+---
 
-- [ ] **M3.8** — Implement playlist CRUD endpoints (server)
-  - Output: `playlist.controller.ts`, `playlist.routes.ts` | Dependencies: M3.1
-  - Endpoints: `POST /api/v1/playlists` (create), `GET /api/v1/playlists/user` (list), `GET /api/v1/playlists/:id` (get), `DELETE /api/v1/playlists/:id` (delete)
+## Phase M3.5: YouTube Export & Video Publish (Future — Post-MVP)
 
-- [ ] **M3.9** — Implement playlist service (server)
-  - Output: `playlist.service.ts` | Dependencies: M3.8
-  - Functions: `createPlaylist()`, `getUserPlaylists()`, `getPlaylist()`, `deletePlaylist()`
+> **Duration**: ~14 days | **Dependencies**: M3 completed, Auth re-implemented
+> **Status**: 🔵 DEFERRED to v1.5
+>
+> See `cabinet/cpo/feature-manager/feature-m3-youtube-export/plan.md` for full CPO analysis.
 
-- [ ] **M3.10** — Build API functions for playlists (client)
-  - Output: `client/src/api/playlists.ts` | Dependencies: M0.12
-  - Functions: `savePlaylist(name, videos)`, `getUserPlaylists()`, `getPlaylist(id)`, `deletePlaylist(id)`
+### YouTube Export (Requires Auth)
 
-### Day 23 — My Playlists Page
+- [ ] **M3.5.1** — Implement YouTube OAuth with youtube.force-ssl scope
+  - Effort: 2 days | Depends: Auth re-implementation
+  - Endpoints: OAuth flow, token storage for YouTube API calls
 
-- [ ] **M3.11** — Build SaveButton component
-  - Output: `SaveButton.tsx` | Dependencies: M3.5
-  - States: Guest (shows AuthModal), Authenticated (saves directly), Saved (disabled)
+- [ ] **M3.5.2** — Export playlist to YouTube account
+  - Effort: 2 days | Depends: M3.5.1
+  - YouTube API: `playlists.insert`, `playlistItems.insert`
+  - UI: Export button on PlaylistPage, progress state, success toast
 
-- [ ] **M3.12** — Build MyPlaylistsPage with PlaylistGrid
-  - Output: `MyPlaylistsPage.tsx` | Dependencies: M3.10, M0.17
-  - Features: AuthGuard (redirect if guest), grid of PlaylistCards, loading state, empty state
+### Video Merge (No Auth Needed — but ToS Risk)
 
-- [ ] **M3.13** — Build PlaylistCard component
-  - Output: `PlaylistCard.tsx` | Dependencies: M0.18
-  - Design: Thumbnail collage (4 videos), name, video count + total duration, date, 3-dot menu (delete)
+- [ ] **M3.5.3** — Research legal/compliance for YouTube video downloading
+  - Effort: 1 day | **Must complete before implementation**
+  - Validate: YouTube ToS, DMCA compliance, copyright fair use
 
-- [ ] **M3.14** — Build PlaylistMeta component
-  - Output: `PlaylistMeta.tsx` | Dependencies: M0.18
-  - Display: Video count ("25 videos"), total duration ("~47 min"), created date
+- [ ] **M3.5.4** — Implement FFmpeg video merge pipeline (server-side)
+  - Effort: 5 days | Depends: Legal clearance
+  - Components: Download videos, concat demuxer, progress tracking, cleanup
 
-### Day 24 — Share & Guest Mode
+- [ ] **M3.5.5** — Build merge UI (progress, cancel, result)
+  - Effort: 2 days | Depends: M3.5.4
+  - UI: Merge button, async progress bar, cancel button, result download/play
 
-- [ ] **M3.15** — Build ShareButton component
-  - Output: `ShareButton.tsx` | Dependencies: M0.18
-  - Features: Copy link to clipboard, toast confirmation, social media share options
+### Publish to YouTube (Requires Auth)
 
-- [ ] **M3.16** — Build SharedPlaylistPage (public view)
-  - Output: `SharedPlaylistPage.tsx` | Dependencies: M3.10
-  - Features: Load playlist by share ID, show player + queue, Open Graph tags
-
-- [ ] **M3.17** — Implement guest mode (localStorage)
-  - Output: `useLocalStorage.ts` + update `playlistStore.ts` | Dependencies: M0.16
-  - Features: Save playlists to localStorage (max 10), load on app start, clear on import
-
-### Day 25 — Import & Integration
-
-- [ ] **M3.18** — Implement "Import from Guest Mode" flow
-  - Output: Update `playlistStore.ts` | Dependencies: M3.17
-  - Flow: User signs in → Guest playlists shown → Select to import → Saved to account
-
-- [ ] **M3.19** — Implement token refresh interceptor
-  - Output: Update `api/client.ts` | Dependencies: M3.1, M0.12
-  - Feature: Auto-refresh on 401, retry original request
-
-- [ ] **M3.20** — Build UserMenu component (avatar, name, logout)
-  - Output: `UserMenu.tsx` | Dependencies: M3.6
-
-### Day 26 — M3 Integration & Deploy
-
-- [ ] **M3.21** — Write integration tests for auth flow
-  - Output: Auth integration tests | Dependencies: All M3 tasks
-  - Tests: OAuth init, callback, token refresh, invalid token
-
-- [ ] **M3.22** — Write integration tests for playlist CRUD
-  - Output: Playlist integration tests | Dependencies: M3.8
-  - Tests: Save playlist, list playlists, get by ID, delete, access control
-
-- [ ] **M3.23** — Deploy M3 to staging and verify
-  - Output: Staging with accounts | Dependencies: All M3 tasks
-  - Verify: Sign in with Google, save playlist, load My Playlists, share link works
+- [ ] **M3.5.6** — Upload merged video to YouTube account
+  - Effort: 2 days | Depends: M3.5.1, M3.5.4
+  - YouTube API: `videos.insert` (resumable upload)
+  - UI: Upload progress, metadata form (title, description, privacy)
 
 ---
 
@@ -735,16 +700,17 @@
 
 ## Appendix: Task Summary by Phase
 
-| Phase | Tasks | Days | Effort (Dev Days) |
-|-------|-------|------|-------------------|
-| **P0: Setup** | 15 | 2 | 2.5 |
-| **M0: Foundation** | 25 | 5 | 5 |
-| **M1: Core Generation** | 28 | 8 | 8 |
-| **M2: Filters & Queue** | 19 | 6 | 6 |
-| **M3: Accounts** | 23 | 7 | 7 |
-| **M4: Polish** | 23 | 6 | 6 |
-| **Post-Launch** | 14 | Ongoing | ~10 |
-| **Total** | **~145** | **32-38 days** | **~33.5 dev days** |
+| Phase | Tasks | Days | Effort (Dev Days) | Status |
+|-------|-------|------|-------------------|--------|
+| **P0: Setup** | 15 | 2 | 2.5 | ✅ Complete |
+| **M0: Foundation** | 25 | 5 | 5 | ✅ Complete |
+| **M1: Core Generation** | 28 | 8 | 8 | ✅ Complete |
+| **M2: Filters & Queue** | 19 | 6 | 6 | ✅ Complete |
+| **M3: Save & Share (LocalStorage)** | 6 | 2 | 2 | ✅ Complete |
+| **M3.5: YouTube Export & Publish** | 6 | ~14 | ~14 | 🔵 Deferred (v1.5) |
+| **M4: Polish** | 23 | 6 | 6 | 🔵 Future |
+| **Post-Launch** | 14 | Ongoing | ~10 | 🔵 Future |
+| **Total** | **~144** | **~32 days** | **~33.5 dev days** | |
 
 ---
 
