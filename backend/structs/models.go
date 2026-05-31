@@ -1,0 +1,67 @@
+package structs
+
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// User matches the Prisma User model
+type User struct {
+	ID        string `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Email     string `gorm:"uniqueIndex;not null"`
+	Name      string `gorm:"not null"`
+	GoogleID  string `gorm:"uniqueIndex;column:google_id;not null"`
+	AvatarURL string `gorm:"column:avatar_url"`
+
+	Playlists []Playlist `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
+
+	CreatedAt time.Time      `gorm:"column:created_at;autoCreateTime"`
+	UpdatedAt time.Time      `gorm:"column:updated_at;autoUpdateTime"`
+	DeletedAt gorm.DeletedAt `gorm:"index"`
+}
+
+func (User) TableName() string {
+	return "users"
+}
+
+// Playlist matches the Prisma Playlist model
+type Playlist struct {
+	ID        string `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	UserID    string `gorm:"type:uuid;column:user_id;index"`
+	User      User   `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
+	Name      string `gorm:"type:varchar(255);not null"`
+	Query     string `gorm:"type:varchar(500);not null"`
+	Filters   string `gorm:"type:jsonb;default:'{}'"`
+
+	Videos []PlaylistVideo `gorm:"foreignKey:PlaylistID;constraint:OnDelete:CASCADE"`
+
+	CreatedAt time.Time      `gorm:"column:created_at;autoCreateTime"`
+	UpdatedAt time.Time      `gorm:"column:updated_at;autoUpdateTime"`
+	DeletedAt gorm.DeletedAt `gorm:"index"`
+}
+
+func (Playlist) TableName() string {
+	return "playlists"
+}
+
+// PlaylistVideo matches the Prisma PlaylistVideo model
+type PlaylistVideo struct {
+	ID              string `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	PlaylistID      string `gorm:"type:uuid;column:playlist_id;index:idx_pv_playlist_pos,priority:1"`
+	Playlist        Playlist `gorm:"foreignKey:PlaylistID;constraint:OnDelete:CASCADE"`
+	YoutubeID       string `gorm:"type:varchar(50);column:youtube_id;not null"`
+	Title           string `gorm:"type:varchar(500);not null"`
+	Channel         string `gorm:"type:varchar(255);not null"`
+	ChannelID       string `gorm:"type:varchar(100);column:channel_id"`
+	Thumbnail       string `gorm:"type:varchar(500)"`
+	DurationSeconds int    `gorm:"column:duration_seconds"`
+	ViewCount       int64  `gorm:"column:view_count"`
+	Position        int    `gorm:"not null;index:idx_pv_playlist_pos,priority:2"`
+
+	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime"`
+}
+
+func (PlaylistVideo) TableName() string {
+	return "playlist_videos"
+}
