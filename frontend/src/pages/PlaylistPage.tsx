@@ -1,9 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout/Header";
 import { YouTubePlayer } from "../components/player/YouTubePlayer";
 import { QueueList, QueueHeader } from "../components/player/QueueList";
-import { EmptyState } from "../components/feedback/EmptyState";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
 import { Spinner } from "../components/ui/Spinner";
@@ -127,25 +126,15 @@ export function PlaylistPage() {
   const isMultiSinger = hasSingerAttribution(queue);
   const singerCount = isMultiSinger ? Object.keys(singerNames).length : 0;
 
-  // If no videos, show empty state
+  // Redirect to home if no playlist data is loaded (e.g., browser back button)
+  useEffect(() => {
+    if (videos.length === 0 && queue.length === 0 && !error) {
+      navigate("/", { replace: true });
+    }
+  }, [videos, queue, error, navigate]);
+
   if (videos.length === 0 && queue.length === 0 && !error) {
-    return (
-      <div className="min-h-screen bg-neutral-950 text-white">
-        <Header />
-        <main className="mx-auto max-w-3xl px-4 pt-24">
-          <EmptyState
-            title="No playlist loaded"
-            message="Go back to the home page and generate a playlist to get started."
-            suggestions={[
-              {
-                label: "Generate a playlist",
-                onClick: () => navigate("/"),
-              },
-            ]}
-          />
-        </main>
-      </div>
-    );
+    return null;
   }
 
   return (

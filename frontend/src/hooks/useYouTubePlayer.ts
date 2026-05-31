@@ -123,12 +123,34 @@ export function useYouTubePlayer(
         cc_load_policy: 0,
         fs: 0,
         playsinline: 1,
+        origin: window.location.origin,
+        enablejsapi: 1,
       },
       events: {
         onReady: () => {
           playerRef.current = player;
           setIsPlayerReady(true);
           setReady(true);
+          // Pre-load the video content and "unlock" autoplay:
+          // 1. Mute (required for autoplay policy bypass)
+          // 2. Play muted (always allowed by browsers)
+          // 3. Pause immediately (content is now loaded and ready)
+          // This ensures subsequent playVideo() calls work without delay
+          try {
+            player.mute();
+            player.playVideo();
+            // Small delay to let content start buffering, then pause
+            setTimeout(() => {
+              if (!playerRef.current) return;
+              player.pauseVideo();
+              // Restore user's mute preference
+              if (!usePlayerStore.getState().isMuted) {
+                player.unMute();
+              }
+            }, 800);
+          } catch {
+            // Ignore errors during pre-load
+          }
           options.onReady?.();
         },
         onStateChange: (event) => {
@@ -146,6 +168,7 @@ export function useYouTubePlayer(
           }
         },
         onError: (event) => {
+          console.error('[Player] YouTube error code:', event.data);
           options.onError?.(event.data);
         },
       },
@@ -175,17 +198,29 @@ export function useYouTubePlayer(
   }, [volume, isMuted, isPlayerReady]);
 
   // Load new video when currentIndex changes
-  // cueVideoById doesn't auto-play — play only if user was already playing
+  // Use loadVideoById with mute to pre-load content (muted load bypasses autoplay policy)
   useEffect(() => {
     if (!playerRef.current || !isPlayerReady) return;
     const video = queue[currentIndex];
     if (video) {
-      playerRef.current.cueVideoById(video.id);
+      const player = playerRef.current;
+      // Pre-load the video content and pause (muted load is always allowed)
+      const wasMuted = usePlayerStore.getState().isMuted;
+      player.mute();
+      player.loadVideoById(video.id);
       setCurrentTime(0);
-      // If user was playing, start the new video immediately
-      if (isPlaying) {
-        playerRef.current.playVideo();
-      }
+      // Pause after a delay to let content load
+      setTimeout(() => {
+        if (!playerRef.current) return;
+        player.pauseVideo();
+        if (!wasMuted) {
+          player.unMute();
+        }
+        // If user was playing, resume
+        if (isPlaying) {
+          player.playVideo();
+        }
+      }, 800);
     }
   }, [currentIndex, isPlayerReady]);
 
@@ -233,12 +268,14 @@ export function useYouTubePlayer(
 
   // Direct play/pause — called directly from user gestures, bypasses async useEffect
   const playVideo = useCallback(() => {
-    usePlayerStore.getState().play();
+    const state = usePlayerStore.getState();
+    state.play();
     playerRef.current?.playVideo();
   }, []);
 
   const pauseVideo = useCallback(() => {
-    usePlayerStore.getState().pause();
+    const state = usePlayerStore.getState();
+    state.pause();
     playerRef.current?.pauseVideo();
   }, []);
 
@@ -262,5 +299,6 @@ export function useYouTubePlayer(
     playVideo,
     pauseVideo,
     seekTo,
+    togglePlay,
   };
 }

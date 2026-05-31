@@ -11,10 +11,13 @@ interface SingerDrawerProps {
 
 export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
   const navigate = useNavigate();
+  const singers = useSingerStore((s) => s.singers);
   const selectedSingerIds = useSingerStore((s) => s.selectedSingerIds);
   const isGenerating = useSingerStore((s) => s.isGenerating);
   const generationError = useSingerStore((s) => s.generationError);
   const generate = useSingerStore((s) => s.generate);
+
+  const selectedSingers = singers.filter((s) => selectedSingerIds.includes(s.id));
 
   // Close on Escape key
   useEffect(() => {
@@ -113,6 +116,43 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
+          {/* Selected singer chips at top of drawer */}
+          {selectedSingers.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-1.5 rounded-lg border border-blue-500/20 bg-blue-600/5 px-3 py-2.5">
+              <span className="mr-0.5 text-xs font-medium text-blue-400 shrink-0">
+                Selected:
+              </span>
+              {selectedSingers.map((singer) => (
+                <span
+                  key={singer.id}
+                  className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-600/15 px-2 py-0.5 text-xs font-medium text-blue-300"
+                >
+                  {singer.name}
+                  <button
+                    onClick={() => {
+                      const store = useSingerStore.getState();
+                      store.toggleSinger(singer.id);
+                    }}
+                    className="ml-0.5 rounded-full p-0.5 text-blue-300/60 transition-colors hover:bg-blue-500/20 hover:text-blue-200"
+                    aria-label={`Remove ${singer.name}`}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <path d="M3 3l6 6M9 3l-6 6" />
+                    </svg>
+                  </button>
+                </span>
+              ))}
+              <button
+                onClick={() => {
+                  const store = useSingerStore.getState();
+                  store.clearSelection();
+                }}
+                className="ml-auto text-[11px] font-medium text-neutral-500 transition-colors hover:text-neutral-300 shrink-0"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
           <SingerSelectorDrawer />
 
           {/* Generation error */}

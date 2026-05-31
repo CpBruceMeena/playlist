@@ -13,12 +13,17 @@ export function YouTubePlayer({
 }: YouTubePlayerProps) {
   const { videos } = usePlaylistStore();
   const {
+    queue,
     currentIndex,
     currentTime,
     videoDuration,
     next,
     isPlaying,
   } = usePlayerUIStore();
+
+  // Use playerStore queue as primary source, fall back to playlistStore videos
+  // (multi-singer flow stores videos in playerStore but not playlistStore)
+  const displayVideos = queue.length > 0 ? queue : videos;
 
   // Auto-advance to next video on end
   const handleEnd = () => {
@@ -41,9 +46,9 @@ export function YouTubePlayer({
     onError: handleError,
   });
 
-  const currentVideo = videos[currentIndex];
+  const currentVideo = displayVideos[currentIndex];
 
-  if (videos.length === 0) {
+  if (displayVideos.length === 0) {
     return (
       <div className="flex aspect-video items-center justify-center rounded-xl bg-neutral-900">
         <div className="text-center">
@@ -83,6 +88,7 @@ export function YouTubePlayer({
       {/* Controls */}
       <PlayerControls
         isPlaying={isPlaying}
+        isReady={isPlayerReady}
         currentTime={currentTime}
         duration={videoDuration}
         onSeek={seekTo}

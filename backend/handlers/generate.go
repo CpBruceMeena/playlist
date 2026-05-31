@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -234,11 +235,55 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 
 			query := s.Name + " song"
 			fetchCount := min(resultsPerSinger*3, 50)
+			cacheKey := services.GenerateSearchCacheKey(query, fetchCount)
 
-			videos, err := h.YouTubeClient.SearchAndGetDetails(query, fetchCount)
-			if err != nil {
-				sendOrCancel(ctx, resultCh, singerResult{SingerID: s.ID, SingerName: s.Name, Error: err})
-				return
+			// Try cache first
+			cachedVideos, _, cacheErr := h.CacheService.GetCachedResult(cacheKey)
+			var videos []clients.VideoDetail
+			var err error
+			var fromCache bool
+
+			if cacheErr == nil && cachedVideos != nil {
+				// Cache hit — use cached data
+				videos = cachedVideos
+				fromCache = true
+				log.Printf("📦 Serving cached result for singer: %s", s.Name)
+			} else {
+				// Cache miss — call YouTube API
+				videos, err = h.YouTubeClient.SearchAndGetDetails(query, fetchCount)
+
+				if err != nil {
+					// Rate-limited — try cache as fallback (even expired)
+					if services.IsRateLimited(err) {
+						log.Printf("⚠️ YouTube API rate limited for singer: %s, trying cache fallback", s.Name)
+						var fallbackEntry structs.YouTubeCache
+						if fbErr := h.DB.Where("cache_key = ?", cacheKey).First(&fallbackEntry).Error; fbErr == nil {
+							var fbVideos []clients.VideoDetail
+							if jsonErr := json.Unmarshal([]byte(fallbackEntry.ResponseJSON), &fbVideos); jsonErr == nil && len(fbVideos) > 0 {
+								videos = fbVideos
+								fromCache = true
+								log.Printf("📦 Cache fallback served for singer: %s (%d videos)", s.Name, len(videos))
+							} else {
+								sendOrCancel(ctx, resultCh, singerResult{SingerID: s.ID, SingerName: s.Name, Error: fmt.Errorf("YouTube API rate limited and no cached data available")})
+								return
+							}
+						} else {
+							sendOrCancel(ctx, resultCh, singerResult{SingerID: s.ID, SingerName: s.Name, Error: fmt.Errorf("YouTube API rate limited and no cached data available")})
+							return
+						}
+					} else {
+						sendOrCancel(ctx, resultCh, singerResult{SingerID: s.ID, SingerName: s.Name, Error: err})
+						return
+					}
+				}
+
+				// Cache the result for future use
+				if !fromCache && len(videos) > 0 {
+					quotaUsed := 100 + len(videos)
+					if cacheErr := h.CacheService.SetCachedResult(cacheKey, "search", videos, quotaUsed); cacheErr != nil {
+						log.Printf("Warning: failed to cache result for singer %s: %v", s.Name, cacheErr)
+					}
+				}
 			}
 
 			// Apply filters per-singer

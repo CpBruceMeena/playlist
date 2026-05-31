@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Singer, FilterCriteria } from "@playlist/types";
 import { fetchSingers, generateMultiSingerPlaylist } from "../api/singers";
 import { usePlayerStore } from "./playerStore";
+import { usePlaylistStore } from "./playlistStore";
 
 interface SingerState {
   // All singers loaded from backend
@@ -146,6 +147,9 @@ export const useSingerStore = create<SingerState>((set, get) => ({
 
       // Initialize the player store with the annotated videos
       usePlayerStore.getState().initQueue(annotatedVideos);
+
+      // Also populate playlistStore so PlaylistPage renders the player correctly
+      usePlaylistStore.getState().setVideos(annotatedVideos);
 
       set({
         singerNames: response.singerNames,

@@ -14,6 +14,7 @@ interface PlaylistState {
 
   // Actions
   generate: (query: string, filters: FilterCriteria) => Promise<void>;
+  setVideos: (videos: YouTubeVideo[]) => void;
   clearError: () => void;
   clearPlaylist: () => void;
 }
@@ -60,6 +61,8 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
       set({ isGenerating: false, error: message });
     }
   },
+
+  setVideos: (videos) => set({ videos }),
 
   clearError: () => set({ error: null }),
 

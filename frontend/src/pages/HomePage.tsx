@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "../components/layout/Header";
 import { SearchInput } from "../components/search/SearchInput";
@@ -60,31 +60,9 @@ export function HomePage() {
     clearError();
   }
 
-  // Sync selected singer names into the search bar query whenever selection changes
-  const syncSingerNames = useCallback(() => {
-    if (selectedSingerIds.length === 0) {
-      // Clear singer names from query when all deselected
-      setQuery("");
-      return;
-    }
-    const names = singers
-      .filter((s) => selectedSingerIds.includes(s.id))
-      .map((s) => s.name)
-      .join(", ");
-    if (names) {
-      setQuery(names);
-    }
-  }, [selectedSingerIds, singers, setQuery]);
-
-  // When drawer closes, sync singer names to search bar
   function handleDrawerClose() {
     setShowSingerDrawer(false);
   }
-
-  // Sync when selection changes (real-time — both in drawer and on close)
-  useEffect(() => {
-    syncSingerNames();
-  }, [selectedSingerIds, syncSingerNames]);
 
   const isZeroResultsError =
     error?.includes("No videos found") || error?.includes("adjust your filters");
@@ -167,6 +145,46 @@ export function HomePage() {
 
             <ActiveFilterBar />
           </div>
+
+          {/* Selected singer chips — visible outside the drawer */}
+          {selectedSingerIds.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium text-neutral-500 shrink-0">
+                Singers:
+              </span>
+              {singers
+                .filter((s) => selectedSingerIds.includes(s.id))
+                .map((singer) => (
+                  <span
+                    key={singer.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-600/10 px-2.5 py-1 text-xs font-medium text-blue-300 transition-all duration-150"
+                  >
+                    {singer.name}
+                    <button
+                      onClick={() => {
+                        const store = useSingerStore.getState();
+                        store.toggleSinger(singer.id);
+                      }}
+                      className="ml-0.5 rounded-full p-0.5 text-blue-300/60 transition-colors hover:bg-blue-500/20 hover:text-blue-200"
+                      aria-label={`Remove ${singer.name}`}
+                    >
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <path d="M3 3l6 6M9 3l-6 6" />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
+              <button
+                onClick={() => {
+                  const store = useSingerStore.getState();
+                  store.clearSelection();
+                }}
+                className="text-[11px] font-medium text-neutral-500 transition-colors hover:text-neutral-300"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
 
           {/* Filters */}
           <FilterPanel />

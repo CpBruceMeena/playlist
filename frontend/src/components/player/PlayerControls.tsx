@@ -5,6 +5,7 @@ import { toast } from "../../stores/toastStore";
 
 interface PlayerControlsProps {
   isPlaying: boolean;
+  isReady: boolean;
   currentTime: number;
   duration: number;
   onSeek: (seconds: number) => void;
@@ -32,6 +33,7 @@ function formatTime(seconds: number): string {
 
 export function PlayerControls({
   isPlaying,
+  isReady,
   currentTime,
   duration,
   onSeek,
@@ -65,7 +67,7 @@ export function PlayerControls({
       switch (e.key) {
         case " ":
           e.preventDefault();
-          onTogglePlay();
+          if (isReady) onTogglePlay();
           break;
         case "n":
         case "N":
@@ -95,7 +97,7 @@ export function PlayerControls({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onTogglePlay, next, previous, toggleMute, currentTime, duration, onSeek]);
+  }, [onTogglePlay, next, previous, toggleMute, currentTime, duration, onSeek, isReady]);
 
   return (
     <div className="space-y-2">
@@ -140,6 +142,7 @@ export function PlayerControls({
           variant="primary"
           size="md"
           className="h-12 w-12 rounded-full p-0"
+          disabled={!isReady}
           aria-label={isPlaying ? "Pause" : "Play"}
         >
           {isPlaying ? (
