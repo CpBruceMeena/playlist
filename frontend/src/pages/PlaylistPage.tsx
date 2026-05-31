@@ -13,6 +13,7 @@ import { useSavedPlaylistsStore } from "../stores/savedPlaylistsStore";
 import { useToastStore } from "../stores/toastStore";
 import { useFilterStore } from "../stores/filterStore";
 import { useSingerStore, hasSingerAttribution } from "../stores/singerStore";
+import { savePlaylistToBackend } from "../api/playlists";
 
 export function PlaylistPage() {
   const navigate = useNavigate();
@@ -48,7 +49,7 @@ export function PlaylistPage() {
     setShowSaveDialog(true);
   }, []);
 
-  const handleConfirmSave = useCallback(() => {
+  const handleConfirmSave = useCallback(async () => {
     if (!playlistName.trim()) {
       setSaveError("Please enter a name");
       return;
@@ -59,24 +60,60 @@ export function PlaylistPage() {
 
     try {
       const filters = getFilterPayload();
-      const result = savePlaylist(
-        playlistName.trim(),
-        query,
-        filters,
-        activeVideos
-      );
+      let savedToBackend = false;
 
-      if ("error" in result) {
-        setSaveError(result.error);
-        addToast({ message: result.error, type: "error", duration: 4000 });
-      } else {
+      // Save to backend first (authoritative save)
+      try {
+        const backendResult = await savePlaylistToBackend(
+          playlistName.trim(),
+          query,
+          filters,
+          activeVideos
+        );
+        savedToBackend = true;
         addToast({
-          message: `Saved "${playlistName.trim()}"`,
+          message: `Saved "${backendResult.name}" (${backendResult.videoCount} videos)`,
           type: "success",
           duration: 3000,
         });
-        setShowSaveDialog(false);
+      } catch (backendErr) {
+        const backendMsg =
+          backendErr instanceof Error ? backendErr.message : "Backend save failed";
+
+        // Check for duplicate from backend
+        if (backendMsg.includes("already exists")) {
+          setSaveError(backendMsg);
+          addToast({ message: backendMsg, type: "error", duration: 4000 });
+          setSaving(false);
+          return;
+        }
+
+        // Backend save failed — will fall back to localStorage below
+        addToast({
+          message: "Backend unavailable, saving locally",
+          type: "warning",
+          duration: 4000,
+        });
       }
+
+      // Only save locally as offline backup if backend save didn't happen
+      if (!savedToBackend) {
+        const localResult = savePlaylist(
+          playlistName.trim(),
+          query,
+          filters,
+          activeVideos
+        );
+
+        if (typeof localResult === "object" && localResult !== null && "error" in localResult) {
+          setSaveError(localResult.error as string);
+          addToast({ message: localResult.error as string, type: "error", duration: 4000 });
+          setSaving(false);
+          return;
+        }
+      }
+
+      setShowSaveDialog(false);
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to save playlist";

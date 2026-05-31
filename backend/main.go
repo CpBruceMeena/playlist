@@ -14,7 +14,6 @@ import (
 	"playlist-backend/middleware"
 	"playlist-backend/routes"
 	"playlist-backend/services"
-	"playlist-backend/structs"
 )
 
 func main() {
@@ -31,23 +30,21 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// Auto-migrate GORM models
-	if err := db.AutoMigrate(
-		&structs.User{},
-		&structs.Playlist{},
-		&structs.PlaylistVideo{},
-		&structs.Singer{},
-	); err != nil {
-		log.Fatalf("Failed to auto-migrate: %v", err)
-	}
-
-	// Seed curated singers into database
-	if err := services.SeedSingers(db); err != nil {
-		log.Printf("Warning: failed to seed initial singers: %v", err)
+	// Create tables if they don't exist + run conditional seed logic
+	// This replaces AutoMigrate — tables are only created when missing
+	if err := services.EnsureTables(db); err != nil {
+		log.Fatalf("Failed to ensure database tables: %v", err)
 	}
 
 	// Initialize YouTube client
 	ytClient := clients.NewYouTubeClient(cfg.YouTubeAPIKey)
+
+	// Initialize cache service for YouTube API response caching
+	cacheService := services.NewCacheService(db)
+	// Purge expired cache entries on startup
+	if err := cacheService.PurgeExpiredCache(); err != nil {
+		log.Printf("Warning: failed to purge expired cache: %v", err)
+	}
 
 	// Set up Gin router
 	r := gin.Default()
@@ -55,8 +52,8 @@ func main() {
 	// Apply CORS middleware
 	r.Use(middleware.SetupCORS(cfg.ClientURL))
 
-	// Setup routes with all dependencies
-	routes.SetupRoutes(r, db, ytClient)
+	// Setup routes with all dependencies — pass cache service too
+	routes.SetupRoutes(r, db, ytClient, cacheService)
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.Port)

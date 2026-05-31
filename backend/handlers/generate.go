@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -16,13 +18,15 @@ type GenerateHandler struct {
 	DB            *gorm.DB
 	YouTubeClient *clients.YouTubeClient
 	FilterService *services.FilterService
+	CacheService  *services.CacheService
 }
 
-func NewGenerateHandler(db *gorm.DB, ytClient *clients.YouTubeClient, filterSvc *services.FilterService) *GenerateHandler {
+func NewGenerateHandler(db *gorm.DB, ytClient *clients.YouTubeClient, filterSvc *services.FilterService, cacheSvc *services.CacheService) *GenerateHandler {
 	return &GenerateHandler{
 		DB:            db,
 		YouTubeClient: ytClient,
 		FilterService: filterSvc,
+		CacheService:  cacheSvc,
 	}
 }
 
@@ -43,11 +47,62 @@ func (h *GenerateHandler) Generate(c *gin.Context) {
 	// Fetch a multiplier to account for filtered-out videos
 	fetchCount = min(fetchCount*3, 50) // YouTube API max is 50 per page
 
-	// Search YouTube and get video details
-	videos, err := h.YouTubeClient.SearchAndGetDetails(req.Query, fetchCount)
-	if err != nil {
-		apiError(c, http.StatusInternalServerError, "Failed to search YouTube: "+err.Error(), "YOUTUBE_API_ERROR")
-		return
+	// Check cache first
+	cacheKey := services.GenerateSearchCacheKey(req.Query, fetchCount)
+	cachedVideos, cachedQuota, cacheErr := h.CacheService.GetCachedResult(cacheKey)
+
+	var videos []clients.VideoDetail
+	var err error
+	var fromCache bool
+	var quotaUsed int
+
+	if cacheErr == nil && cachedVideos != nil {
+		// Cache hit — use cached data
+		videos = cachedVideos
+		if cachedQuota != nil {
+			quotaUsed = *cachedQuota
+		}
+		fromCache = true
+		log.Printf("📦 Serving cached result for query: %s", req.Query[:min(len(req.Query), 60)])
+	} else {
+		// Cache miss — call YouTube API
+		videos, err = h.YouTubeClient.SearchAndGetDetails(req.Query, fetchCount)
+
+		if err != nil {
+			// Rate-limited — try cache as fallback
+			if services.IsRateLimited(err) {
+				log.Printf("⚠️ YouTube API rate limited, trying cache fallback for: %s", req.Query[:min(len(req.Query), 60)])
+				// Try cache even if expired
+				var fallbackEntry structs.YouTubeCache
+				if fbErr := h.DB.Where("cache_key = ?", cacheKey).First(&fallbackEntry).Error; fbErr == nil {
+					// Found a fallback entry
+					var fbVideos []clients.VideoDetail
+					if jsonErr := json.Unmarshal([]byte(fallbackEntry.ResponseJSON), &fbVideos); jsonErr == nil && len(fbVideos) > 0 {
+						videos = fbVideos
+						quotaUsed = fallbackEntry.QuotaUsed
+						fromCache = true
+						log.Printf("📦 Cache fallback served for query: %s (expired, %d videos)", req.Query[:min(len(req.Query), 60)], len(videos))
+					} else {
+						apiError(c, http.StatusTooManyRequests, "YouTube API rate limit exceeded and no valid cached data available. Try again later.", "RATE_LIMITED")
+						return
+					}
+				} else {
+					apiError(c, http.StatusTooManyRequests, "YouTube API rate limit exceeded. Try again later.", "RATE_LIMITED")
+					return
+				}
+			} else {
+				apiError(c, http.StatusInternalServerError, "Failed to search YouTube: "+err.Error(), "YOUTUBE_API_ERROR")
+				return
+			}
+		}
+
+		// Cache the result for future use (only if we fetched fresh data)
+		if !fromCache && len(videos) > 0 {
+			quotaUsed = 100 + len(videos)
+			if cacheErr := h.CacheService.SetCachedResult(cacheKey, "search", videos, quotaUsed); cacheErr != nil {
+				log.Printf("Warning: failed to cache result: %v", cacheErr)
+			}
+		}
 	}
 
 	if len(videos) == 0 {
@@ -95,8 +150,10 @@ func (h *GenerateHandler) Generate(c *gin.Context) {
 		})
 	}
 
-	// Calculate approximate quota used: 100 for search + 1 per video detail
-	quotaUsed := 100 + len(videos)
+	if !fromCache {
+		// Calculate approximate quota used: 100 for search + 1 per video detail
+		quotaUsed = 100 + len(videos)
+	}
 
 	apiResponse(c, structs.GenerateResponse{
 		Videos:    resultVideos,
@@ -163,16 +220,24 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 		Error      error
 	}
 
+	ctx := c.Request.Context()
 	resultCh := make(chan singerResult, len(singers))
 
 	for _, singer := range singers {
 		go func(s structs.Singer) {
+			// Check if request was cancelled before starting expensive work
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			query := s.Name + " song"
 			fetchCount := min(resultsPerSinger*3, 50)
 
 			videos, err := h.YouTubeClient.SearchAndGetDetails(query, fetchCount)
 			if err != nil {
-				resultCh <- singerResult{SingerID: s.ID, SingerName: s.Name, Error: err}
+				sendOrCancel(ctx, resultCh, singerResult{SingerID: s.ID, SingerName: s.Name, Error: err})
 				return
 			}
 
@@ -184,47 +249,56 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 				filtered = filtered[:resultsPerSinger]
 			}
 
-			resultCh <- singerResult{SingerID: s.ID, SingerName: s.Name, Videos: filtered}
+			sendOrCancel(ctx, resultCh, singerResult{SingerID: s.ID, SingerName: s.Name, Videos: filtered})
 		}(singer)
 	}
 
-	// Collect results
+	// Collect results (context-aware to handle request cancellation)
 	var allVideos []structs.YouTubeVideo
 	perSingerResults := make(map[string]int)
 	singerNames := make(map[string]string)
 	totalQuota := 0
 
+CollectResults:
 	for i := 0; i < len(singers); i++ {
-		result := <-resultCh
-		singerNames[result.SingerID] = result.SingerName
+		select {
+		case <-ctx.Done():
+			log.Printf("Request cancelled, returning partial results (%d/%d singers processed)", i, len(singers))
+			if len(allVideos) == 0 {
+				apiError(c, http.StatusGatewayTimeout, "Request was cancelled", "REQUEST_CANCELLED")
+				return
+			}
+			break CollectResults
+		case result := <-resultCh:
+			singerNames[result.SingerID] = result.SingerName
 
-		if result.Error != nil {
-			log.Printf("Warning: failed to search for singer %s: %v", result.SingerName, result.Error)
-			// Continue with other singers — partial results are OK
-			perSingerResults[result.SingerID] = 0
-			continue
-		}
+			if result.Error != nil {
+				log.Printf("Warning: failed to search for singer %s: %v", result.SingerName, result.Error)
+				perSingerResults[result.SingerID] = 0
+				continue
+			}
 
-		perSingerResults[result.SingerID] = len(result.Videos)
-		totalQuota += 100 + len(result.Videos) // search (100) + video details (1 each)
+			perSingerResults[result.SingerID] = len(result.Videos)
+			totalQuota += 100 + len(result.Videos)
 
-		for _, v := range result.Videos {
-			videoType := h.FilterService.ClassifyVideoType(v)
-			allVideos = append(allVideos, structs.YouTubeVideo{
-				ID:              v.ID,
-				Title:           v.Title,
-				Description:     v.Description,
-				ChannelID:       v.ChannelID,
-				ChannelTitle:    v.ChannelTitle,
-				ThumbnailURL:    v.ThumbnailURL,
-				Duration:        v.Duration,
-				DurationSeconds: v.DurationSeconds,
-				ViewCount:       v.ViewCount,
-				LikeCount:       v.LikeCount,
-				PublishedAt:     v.PublishedAt,
-				Tags:            v.Tags,
-				VideoType:       structs.VideoType(videoType),
-			})
+			for _, v := range result.Videos {
+				videoType := h.FilterService.ClassifyVideoType(v)
+				allVideos = append(allVideos, structs.YouTubeVideo{
+					ID:              v.ID,
+					Title:           v.Title,
+					Description:     v.Description,
+					ChannelID:       v.ChannelID,
+					ChannelTitle:    v.ChannelTitle,
+					ThumbnailURL:    v.ThumbnailURL,
+					Duration:        v.Duration,
+					DurationSeconds: v.DurationSeconds,
+					ViewCount:       v.ViewCount,
+					LikeCount:       v.LikeCount,
+					PublishedAt:     v.PublishedAt,
+					Tags:            v.Tags,
+					VideoType:       structs.VideoType(videoType),
+				})
+			}
 		}
 	}
 
@@ -240,6 +314,14 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 		PerSingerResults: perSingerResults,
 		SingerNames:      singerNames,
 	})
+}
+
+// sendOrCancel sends a result to the channel or returns if the context is cancelled
+func sendOrCancel[T any](ctx context.Context, ch chan<- T, val T) {
+	select {
+	case <-ctx.Done():
+	case ch <- val:
+	}
 }
 
 // toServiceUploadDate converts structs.UploadDate to services.UploadDateRange

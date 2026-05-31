@@ -5,6 +5,7 @@ import { SearchInput } from "../components/search/SearchInput";
 import { FilterPanel } from "../components/search/FilterPanel";
 import { ActiveFilterBar } from "../components/search/ActiveFilterBar";
 import { SingerSelector } from "../components/search/SingerSelector";
+import { SelectedSingerChips } from "../components/search/SelectedSingerChips";
 import { EmptyState } from "../components/feedback/EmptyState";
 import { LoadingSkeleton } from "../components/feedback/LoadingSkeleton";
 import { ErrorState } from "../components/feedback/ErrorState";
@@ -136,6 +137,9 @@ export function HomePage() {
           {/* No absolute positioning — natural flow for each tab */}
           {tab === "search" && (
             <div className="mt-6 space-y-4">
+              {/* Selected singers from Singers tab */}
+              <SelectedSingerChips />
+
               {/* Search section */}
               <SearchInput
                 value={query}

@@ -32,6 +32,7 @@ type Playlist struct {
 	User      User   `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
 	Name      string `gorm:"type:varchar(255);not null"`
 	Query     string `gorm:"type:varchar(500);not null"`
+	QueryHash string `gorm:"type:varchar(50);column:query_hash;uniqueIndex:idx_query_hash"`
 	Filters   string `gorm:"type:jsonb;default:'{}'"`
 
 	Videos []PlaylistVideo `gorm:"foreignKey:PlaylistID;constraint:OnDelete:CASCADE"`
@@ -85,4 +86,21 @@ type Singer struct {
 
 func (Singer) TableName() string {
 	return "singers"
+}
+
+// YouTubeCache stores YouTube API responses for testing/rate-limit fallback
+type YouTubeCache struct {
+	ID            string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CacheKey      string    `gorm:"type:varchar(500);uniqueIndex:idx_cache_key;not null" json:"-"`
+	CacheType     string    `gorm:"type:varchar(50);not null;index:idx_cache_type" json:"-"`
+	ResponseJSON  string    `gorm:"type:jsonb;not null" json:"-"`
+	QuotaUsed     int       `gorm:"column:quota_used;default:0" json:"-"`
+	HitCount      int       `gorm:"column:hit_count;default:0" json:"-"`
+
+	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime" json:"-"`
+	ExpiresAt time.Time `gorm:"column:expires_at;not null;index:idx_cache_expires" json:"-"`
+}
+
+func (YouTubeCache) TableName() string {
+	return "youtube_cache"
 }

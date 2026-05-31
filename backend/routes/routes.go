@@ -12,14 +12,15 @@ import (
 )
 
 // SetupRoutes configures all API routes
-func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient) {
+func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient, cacheSvc *services.CacheService) {
 	// Initialize services
 	filterService := services.NewFilterService()
 
 	// Initialize handlers
 	healthHandler := handlers.NewHealthHandler(db)
-	generateHandler := handlers.NewGenerateHandler(db, ytClient, filterService)
+	generateHandler := handlers.NewGenerateHandler(db, ytClient, filterService, cacheSvc)
 	singersHandler := handlers.NewSingersHandler(db)
+	playlistHandler := handlers.NewPlaylistHandler(db)
 
 	// Apply rate limiter (10 requests per minute per IP)
 	rateLimiter := middleware.NewRateLimiter(10, 1*time.Minute)
@@ -38,5 +39,11 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient) {
 
 		// Multi-singer generation
 		v1.POST("/generate/multi-singer", generateHandler.GenerateMultiSinger)
+
+		// Playlist CRUD
+		v1.POST("/playlists", playlistHandler.SavePlaylist)
+		v1.GET("/playlists", playlistHandler.ListPlaylists)
+		v1.GET("/playlists/:id", playlistHandler.GetPlaylist)
+		v1.DELETE("/playlists/:id", playlistHandler.DeletePlaylist)
 	}
 }

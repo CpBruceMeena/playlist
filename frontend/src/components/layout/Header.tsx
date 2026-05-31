@@ -34,11 +34,11 @@ export function Header({ onBack, onSave, onShare, showActions = false }: HeaderP
             <svg width="28" height="28" viewBox="0 0 48 48" className="transition-transform duration-200 group-hover:scale-110">
               <defs>
                 <linearGradient id="header-logo" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#3b82f6"/>
-                  <stop offset="100%" stop-color="#a855f7"/>
+                  <stop offset="0%" stopColor="#3b82f6"/>
+                  <stop offset="100%" stopColor="#a855f7"/>
                 </linearGradient>
               </defs>
-              <rect width="48" height="48" rx="10" fill="#0a0a0a" stroke="url(#header-logo)" stroke-width="1.5"/>
+              <rect width="48" height="48" rx="10" fill="#0a0a0a" stroke="url(#header-logo)" strokeWidth="1.5"/>
               <polygon points="18,14 18,34 34,24" fill="url(#header-logo)"/>
               <g fill="#a855f7" opacity="0.8">
                 <ellipse cx="20" cy="36" rx="3" ry="2.5"/>

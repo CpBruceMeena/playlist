@@ -46,8 +46,8 @@ export function EmptyState({
           <rect x="38" y="24" width="4" height="28" rx="1.5" fill="#a855f7" opacity="0.2"/>
           <defs>
             <linearGradient id="empty-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#3b82f6"/>
-              <stop offset="100%" stop-color="#a855f7"/>
+              <stop offset="0%" stopColor="#3b82f6"/>
+              <stop offset="100%" stopColor="#a855f7"/>
             </linearGradient>
           </defs>
         </svg>
