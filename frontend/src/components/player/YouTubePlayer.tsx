@@ -1,8 +1,6 @@
 import { useYouTubePlayer } from "../../hooks/useYouTubePlayer";
 import { usePlaylistStore } from "../../stores/playlistStore";
 import { usePlayerStore as usePlayerUIStore } from "../../stores/playerStore";
-import { PlayerControls } from "./PlayerControls";
-import { ProgressBar } from "./ProgressBar";
 
 interface YouTubePlayerProps {
   containerId?: string;
@@ -12,36 +10,23 @@ export function YouTubePlayer({
   containerId = "youtube-player",
 }: YouTubePlayerProps) {
   const { videos } = usePlaylistStore();
-  const {
-    queue,
-    currentIndex,
-    currentTime,
-    videoDuration,
-    next,
-    isPlaying,
-  } = usePlayerUIStore();
+  const { queue, currentIndex, next } = usePlayerUIStore();
 
   // Use playerStore queue as primary source, fall back to playlistStore videos
-  // (multi-singer flow stores videos in playerStore but not playlistStore)
   const displayVideos = queue.length > 0 ? queue : videos;
 
   // Auto-advance to next video on end
   const handleEnd = () => {
-    // Mark as playing so the cueVideoById effect will auto-play the next video
     usePlayerUIStore.getState().setPlaying(true);
-    const nextVideo = next();
-    if (nextVideo) {
-      // The useEffect in the hook will cue + play the next video via currentIndex change
-    }
+    next();
   };
 
   const handleError = (errorCode: number) => {
     console.warn("YouTube player error:", errorCode);
-    // Skip to next video on error
     next();
   };
 
-  const { isPlayerReady, seekTo, togglePlay } = useYouTubePlayer(containerId, {
+  const { isPlayerReady } = useYouTubePlayer(containerId, {
     onEnd: handleEnd,
     onError: handleError,
   });
@@ -84,23 +69,6 @@ export function YouTubePlayer({
           <p className="text-sm text-neutral-400">{currentVideo.channelTitle}</p>
         </div>
       )}
-
-      {/* Controls */}
-      <PlayerControls
-        isPlaying={isPlaying}
-        isReady={isPlayerReady}
-        currentTime={currentTime}
-        duration={videoDuration}
-        onSeek={seekTo}
-        onTogglePlay={togglePlay}
-      />
-
-      {/* Progress bar */}
-      <ProgressBar
-        currentTime={currentTime}
-        duration={videoDuration}
-        onSeek={seekTo}
-      />
     </div>
   );
 }

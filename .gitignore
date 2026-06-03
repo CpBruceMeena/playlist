@@ -19,6 +19,10 @@ frontend/dist/
 backend/.env
 frontend/.env
 
+# Python virtual environment
+.venv/
+venv/
+
 # IDE
 .vscode/
 .idea/

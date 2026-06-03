@@ -19,7 +19,7 @@ interface PlaylistState {
   clearPlaylist: () => void;
 }
 
-export const usePlaylistStore = create<PlaylistState>((set, get) => ({
+export const usePlaylistStore = create<PlaylistState>((set) => ({
   videos: [],
   isGenerating: false,
   error: null,

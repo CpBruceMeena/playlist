@@ -19,7 +19,6 @@ export function PlaylistPage() {
   const { videos, error } = usePlaylistStore();
   const {
     queue,
-    currentIndex,
     shuffleMode,
     toggleShuffle,
     repeatMode,
@@ -194,7 +193,7 @@ export function PlaylistPage() {
         </div>
       </main>
 
-      {/* Save dialog */}
+      {/* Save playlist dialog */}
       {showSaveDialog && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
@@ -247,6 +246,7 @@ export function PlaylistPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

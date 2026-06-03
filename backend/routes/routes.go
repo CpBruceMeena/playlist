@@ -45,5 +45,6 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient, ca
 		v1.GET("/playlists", playlistHandler.ListPlaylists)
 		v1.GET("/playlists/:id", playlistHandler.GetPlaylist)
 		v1.DELETE("/playlists/:id", playlistHandler.DeletePlaylist)
+
 	}
 }

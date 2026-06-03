@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { YouTubeVideo, PlayerState, RepeatMode } from "@playlist/types";
+import type { YouTubeVideo, RepeatMode } from "@playlist/types";
 
 interface PlayerStateStore {
   // Player status

@@ -81,6 +81,7 @@ export function useYouTubePlayer(
   // Load the YouTube IFrame API
   useEffect(() => {
     if (window.YT) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setApiLoaded(true);
       return;
     }
@@ -96,6 +97,7 @@ export function useYouTubePlayer(
 
     // Wait for API to be ready
     window.onYouTubeIframeAPIReady = () => {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setApiLoaded(true);
     };
 

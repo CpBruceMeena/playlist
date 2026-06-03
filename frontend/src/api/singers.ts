@@ -35,9 +35,11 @@ export async function generateMultiSingerPlaylist(
   singerIds: string[],
   resultsPerSinger: number,
   filters: FilterCriteria,
+  customSingers?: string[],
 ): Promise<MultiSingerResponse> {
   return apiClient.post<MultiSingerResponse>("/generate/multi-singer", {
     singerIds,
+    customSingers,
     resultsPerSinger,
     filters,
   } satisfies MultiSingerRequest);

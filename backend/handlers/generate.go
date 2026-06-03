@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -171,9 +172,10 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 		return
 	}
 
-	// Validate singer count
-	if len(req.SingerIDs) < 2 || len(req.SingerIDs) > 5 {
-		apiError(c, http.StatusBadRequest, "Please select between 2 and 5 singers", "VALIDATION_ERROR")
+	// Validate singer count (DB singers + custom singers total 2-5)
+	totalSingerCount := len(req.SingerIDs) + len(req.CustomSingers)
+	if totalSingerCount < 2 || totalSingerCount > 5 {
+		apiError(c, http.StatusBadRequest, "Please select between 2 and 5 singers total (including custom)", "VALIDATION_ERROR")
 		return
 	}
 
@@ -183,16 +185,45 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 		resultsPerSinger = 10 // default
 	}
 
-	// Fetch all singers from DB
-	var singers []structs.Singer
-	if err := h.DB.Where("id IN ? AND is_active = ?", req.SingerIDs, true).Find(&singers).Error; err != nil {
-		apiServerError(c, err)
+	// Build singer list: DB singers + custom singers
+	type singerSearch struct {
+		ID   string
+		Name string
+	}
+	var singerSearches []singerSearch
+
+	// Fetch DB singers
+	var dbSingers []structs.Singer
+	if len(req.SingerIDs) > 0 {
+		if err := h.DB.Where("id IN ? AND is_active = ?", req.SingerIDs, true).Find(&dbSingers).Error; err != nil {
+			apiServerError(c, err)
+			return
+		}
+		for _, s := range dbSingers {
+			singerSearches = append(singerSearches, singerSearch{ID: s.ID, Name: s.Name})
+		}
+	}
+
+	// Add custom singers
+	for i, name := range req.CustomSingers {
+		name := strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		singerSearches = append(singerSearches, singerSearch{
+			ID:   fmt.Sprintf("custom-%d", i),
+			Name: name,
+		})
+	}
+
+	if len(singerSearches) < 2 {
+		apiError(c, http.StatusNotFound, "At least 2 singers required (DB or custom)", "NOT_FOUND")
 		return
 	}
 
-	if len(singers) == 0 {
-		apiError(c, http.StatusNotFound, "No singers found", "NOT_FOUND")
-		return
+	// Validate total singer count (max 5)
+	if len(singerSearches) > 5 {
+		singerSearches = singerSearches[:5]
 	}
 
 	// Build service-level filters (shared across all singers)
@@ -222,10 +253,10 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	resultCh := make(chan singerResult, len(singers))
+	resultCh := make(chan singerResult, len(singerSearches))
 
-	for _, singer := range singers {
-		go func(s structs.Singer) {
+	for _, ss := range singerSearches {
+		go func(s singerSearch) {
 			// Check if request was cancelled before starting expensive work
 			select {
 			case <-ctx.Done():
@@ -295,7 +326,7 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 			}
 
 			sendOrCancel(ctx, resultCh, singerResult{SingerID: s.ID, SingerName: s.Name, Videos: filtered})
-		}(singer)
+		}(ss)
 	}
 
 	// Collect results (context-aware to handle request cancellation)
@@ -305,10 +336,10 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 	totalQuota := 0
 
 CollectResults:
-	for i := 0; i < len(singers); i++ {
+	for i := 0; i < len(singerSearches); i++ {
 		select {
 		case <-ctx.Done():
-			log.Printf("Request cancelled, returning partial results (%d/%d singers processed)", i, len(singers))
+			log.Printf("Request cancelled, returning partial results (%d/%d singers processed)", i, len(singerSearches))
 			if len(allVideos) == 0 {
 				apiError(c, http.StatusGatewayTimeout, "Request was cancelled", "REQUEST_CANCELLED")
 				return

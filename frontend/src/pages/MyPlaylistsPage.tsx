@@ -7,7 +7,6 @@ import {
   useSavedPlaylistsStore,
   type SavedPlaylist,
 } from "../stores/savedPlaylistsStore";
-import { usePlaylistStore } from "../stores/playlistStore";
 import { usePlayerStore } from "../stores/playerStore";
 import { useToastStore } from "../stores/toastStore";
 

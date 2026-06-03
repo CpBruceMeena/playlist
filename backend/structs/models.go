@@ -104,3 +104,4 @@ type YouTubeCache struct {
 func (YouTubeCache) TableName() string {
 	return "youtube_cache"
 }
+
