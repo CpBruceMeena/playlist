@@ -21,6 +21,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient, ca
 	generateHandler := handlers.NewGenerateHandler(db, ytClient, filterService, cacheSvc)
 	singersHandler := handlers.NewSingersHandler(db)
 	playlistHandler := handlers.NewPlaylistHandler(db)
+	mergeHandler := handlers.NewMergeHandler()
 
 	// Apply rate limiter (10 requests per minute per IP)
 	rateLimiter := middleware.NewRateLimiter(10, 1*time.Minute)
@@ -45,6 +46,11 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient, ca
 		v1.GET("/playlists", playlistHandler.ListPlaylists)
 		v1.GET("/playlists/:id", playlistHandler.GetPlaylist)
 		v1.DELETE("/playlists/:id", playlistHandler.DeletePlaylist)
+
+		// Video merge (proxies to Python merge server on port 5002)
+		v1.POST("/merge", mergeHandler.Merge)
+		v1.GET("/merged", mergeHandler.ListMergedVideos)
+		v1.GET("/merged/:filename", mergeHandler.ServeMergedFile)
 
 	}
 }

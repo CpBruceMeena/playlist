@@ -135,6 +135,29 @@ type MultiSingerResponse struct {
 	SingerNames     map[string]string `json:"singerNames"`
 }
 
+// --- Merge Types ---
+
+// MergeVideoRequest is a single video in a merge request
+type MergeVideoRequest struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	URL   string `json:"url"`
+}
+
+// MergeRequest is the request for POST /api/v1/merge
+type MergeRequest struct {
+	Videos []MergeVideoRequest `json:"videos" binding:"required,min=2"`
+}
+
+// MergeResponse is the response for POST /api/v1/merge
+type MergeResponse struct {
+	ID        string `json:"id"`
+	Filename  string `json:"filename"`
+	URL       string `json:"url"`
+	Duration  int    `json:"duration"`
+	Status    string `json:"status"`
+}
+
 // APIError represents a standard error response
 type APIError struct {
 	Error APIErrorDetail `json:"error"`

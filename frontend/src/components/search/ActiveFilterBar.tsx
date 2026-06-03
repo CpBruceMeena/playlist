@@ -20,9 +20,18 @@ const VIEW_LABELS: Record<number, string> = {
   1000000: "1M+",
 };
 
+const DURATION_PRESETS = [
+  { label: "< 1 min", min: undefined, max: 60 },
+  { label: "1-4 min", min: 60, max: 240 },
+  { label: "4-10 min", min: 240, max: 600 },
+  { label: "10-20 min", min: 600, max: 1200 },
+  { label: "> 20 min", min: 1200, max: undefined },
+];
+
 export function ActiveFilterBar() {
   const {
     isExpanded,
+    selectedDurationPresets,
     durationMin,
     durationMax,
     videoTypes,
@@ -55,7 +64,9 @@ export function ActiveFilterBar() {
   }
 
   // Non-default states
-  if (durationMin !== undefined || durationMax !== undefined) {
+  if (selectedDurationPresets.length > 0) {
+    chips.push({ label: `Duration: ${selectedDurationPresets.join(", ")}`, key: "duration" });
+  } else if (durationMin !== undefined || durationMax !== undefined) {
     const range = formatRange(durationMin, durationMax);
     if (range) chips.push({ label: `Duration: ${range}`, key: "duration" });
   }

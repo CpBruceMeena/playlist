@@ -1,11 +1,26 @@
 import { create } from "zustand";
 import type { FilterCriteria, VideoType, UploadDateRange } from "@playlist/types";
 
+interface DurationRange {
+  label: string;
+  min?: number;
+  max?: number;
+}
+
+const DURATION_PRESETS: DurationRange[] = [
+  { label: "< 1 min", min: undefined, max: 60 },
+  { label: "1-4 min", min: 60, max: 240 },
+  { label: "4-10 min", min: 240, max: 600 },
+  { label: "10-20 min", min: 600, max: 1200 },
+  { label: "> 20 min", min: 1200, max: undefined },
+];
+
 interface FilterState {
   // Filter values
   query: string;
   durationMin: number | undefined;
   durationMax: number | undefined;
+  selectedDurationPresets: string[]; // Multi-select: multiple preset labels can be active
   videoTypes: VideoType[];
   includeKeywords: string[];
   excludeKeywords: string[];
@@ -21,6 +36,7 @@ interface FilterState {
   setQuery: (query: string) => void;
   setDurationMin: (seconds: number | undefined) => void;
   setDurationMax: (seconds: number | undefined) => void;
+  toggleDurationPreset: (label: string) => void;
   setVideoTypes: (types: VideoType[]) => void;
   toggleVideoType: (type: VideoType) => void;
   addIncludeKeyword: (keyword: string) => void;
@@ -37,9 +53,25 @@ interface FilterState {
   getFilterPayload: () => FilterCriteria;
 }
 
+function computeDurationFromPresets(presets: string[]): { durationMin: number | undefined; durationMax: number | undefined } {
+  if (presets.length === 0) {
+    return { durationMin: undefined, durationMax: undefined };
+  }
+
+  const selected = DURATION_PRESETS.filter((p) => presets.includes(p.label));
+  const mins = selected.map((p) => p.min).filter((m): m is number => m !== undefined);
+  const maxes = selected.map((p) => p.max).filter((m): m is number => m !== undefined);
+
+  return {
+    durationMin: mins.length > 0 ? Math.min(...mins) : undefined,
+    durationMax: maxes.length > 0 ? Math.max(...maxes) : undefined,
+  };
+}
+
 const initialFilters = {
   durationMin: undefined as number | undefined,
   durationMax: undefined as number | undefined,
+  selectedDurationPresets: [] as string[],
   videoTypes: ["music", "standard"] as VideoType[],
   includeKeywords: [] as string[],
   excludeKeywords: [] as string[],
@@ -58,8 +90,23 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   // Actions
   setQuery: (query) => set({ query }),
 
-  setDurationMin: (seconds) => set({ durationMin: seconds }),
-  setDurationMax: (seconds) => set({ durationMax: seconds }),
+  setDurationMin: (seconds) => set({ durationMin: seconds, selectedDurationPresets: [] }),
+  setDurationMax: (seconds) => set({ durationMax: seconds, selectedDurationPresets: [] }),
+
+  toggleDurationPreset: (label) =>
+    set((state) => {
+      const has = state.selectedDurationPresets.includes(label);
+      const nextPresets = has
+        ? state.selectedDurationPresets.filter((l) => l !== label)
+        : [...state.selectedDurationPresets, label];
+
+      const { durationMin, durationMax } = computeDurationFromPresets(nextPresets);
+      return {
+        selectedDurationPresets: nextPresets,
+        durationMin,
+        durationMax,
+      };
+    }),
 
   setVideoTypes: (types) => set({ videoTypes: types }),
 
@@ -117,7 +164,8 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   getActiveFilterCount: () => {
     const state = get();
     let count = 0;
-    if (state.durationMin !== undefined || state.durationMax !== undefined) count++;
+    if (state.selectedDurationPresets.length > 0) count++;
+    else if (state.durationMin !== undefined || state.durationMax !== undefined) count++;
     if (state.videoTypes.length < 4) count++;
     if (state.includeKeywords.length > 0) count++;
     if (state.excludeKeywords.length > 0) count++;

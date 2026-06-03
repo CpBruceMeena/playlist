@@ -30,7 +30,6 @@ const VIEW_OPTIONS = [
 ];
 
 const DURATION_PRESETS = [
-  { label: "Any", min: undefined, max: undefined },
   { label: "< 1 min", min: undefined, max: 60 },
   { label: "1-4 min", min: 60, max: 240 },
   { label: "4-10 min", min: 240, max: 600 },
@@ -50,6 +49,7 @@ export function FilterPanel() {
   const {
     durationMin,
     durationMax,
+    selectedDurationPresets,
     videoTypes,
     includeKeywords,
     excludeKeywords,
@@ -61,6 +61,7 @@ export function FilterPanel() {
     toggleVideoType,
     setDurationMin,
     setDurationMax,
+    toggleDurationPreset,
     addIncludeKeyword,
     removeIncludeKeyword,
     addExcludeKeyword,
@@ -93,9 +94,7 @@ export function FilterPanel() {
     }
   }
 
-  const activePreset = DURATION_PRESETS.find(
-    (p) => p.min === durationMin && p.max === durationMax,
-  );
+
 
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 overflow-hidden transition-all duration-200">
@@ -165,7 +164,7 @@ export function FilterPanel() {
             </div>
           </div>
 
-          {/* ── Row: Duration ── */}
+          {/* ── Row: Duration (multi-select) ── */}
           <div className="px-4 py-3.5 border-b border-neutral-800/50">
             <div className="flex items-start gap-4">
               <span className="mt-0.5 flex shrink-0 items-center gap-1.5 text-xs font-medium text-neutral-500 w-[90px]">
@@ -178,15 +177,11 @@ export function FilterPanel() {
               <div className="flex-1 space-y-2.5 min-w-0">
                 <div className="flex flex-wrap gap-1.5">
                   {DURATION_PRESETS.map((preset) => {
-                    const isActive =
-                      preset.min === durationMin && preset.max === durationMax;
+                    const isActive = selectedDurationPresets.includes(preset.label);
                     return (
                       <button
                         key={preset.label}
-                        onClick={() => {
-                          setDurationMin(preset.min);
-                          setDurationMax(preset.max);
-                        }}
+                        onClick={() => toggleDurationPreset(preset.label)}
                         className={`rounded-full px-2.5 py-1 text-xs font-medium transition-all duration-150 ${
                           isActive
                             ? "bg-blue-600/20 text-blue-300 ring-1 ring-blue-500/30"
@@ -198,7 +193,7 @@ export function FilterPanel() {
                     );
                   })}
                 </div>
-                {!activePreset && (
+                {selectedDurationPresets.length === 0 && (
                   <div className="flex items-center gap-3">
                     <Slider
                       value={durationMin ?? 0}

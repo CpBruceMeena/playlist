@@ -40,5 +40,12 @@ merged/
 # UI design exports
 ui_design/
 
+# Generated merge outputs
+output/
+backend/output/
+
+# Standalone video projects (not part of core app)
+video/
+
 # Logs
 *.log

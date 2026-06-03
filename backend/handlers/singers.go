@@ -26,7 +26,7 @@ func NewSingersHandler(db *gorm.DB) *SingersHandler {
 func (h *SingersHandler) ListSingers(c *gin.Context) {
 	genre := c.Query("genre")
 	search := c.Query("search")
-	limitStr := c.DefaultQuery("limit", "100")
+	limitStr := c.DefaultQuery("limit", "200")
 
 	limit := 100
 	if n, err := parseInt(limitStr); err == nil && n > 0 && n <= 200 {

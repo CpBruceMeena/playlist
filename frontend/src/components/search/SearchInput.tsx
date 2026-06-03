@@ -7,6 +7,7 @@ interface SearchInputProps {
   onSubmit: () => void;
   loading?: boolean;
   suggestions?: string[];
+  hasSingers?: boolean;
 }
 
 export function SearchInput({
@@ -15,6 +16,7 @@ export function SearchInput({
   onSubmit,
   loading = false,
   suggestions = [],
+  hasSingers = false,
 }: SearchInputProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -92,11 +94,11 @@ export function SearchInput({
               setShowSuggestions(false);
               onSubmit();
             }}
-            disabled={!value.trim() || loading}
+            disabled={(!value.trim() && !hasSingers) || loading}
             loading={loading}
             size="md"
           >
-            Generate
+            {hasSingers && !value.trim() ? "Generate with Singers" : "Generate"}
           </Button>
         </div>
       </div>

@@ -74,7 +74,7 @@ export const usePlayerStore = create<PlayerStateStore>((set, get) => ({
       queue: videos,
       originalQueue: [...videos],
       currentIndex: 0,
-      isPlaying: false,
+      isPlaying: true,
       currentTime: 0,
       videoDuration: 0,
       playbackHistory: [],

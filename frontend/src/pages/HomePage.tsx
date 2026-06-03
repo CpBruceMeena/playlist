@@ -36,7 +36,10 @@ export function HomePage() {
     clearPlaylist,
   } = usePlaylistStore();
   const selectedSingerIds = useSingerStore((s) => s.selectedSingerIds);
+  const customSingerNames = useSingerStore((s) => s.customSingerNames);
   const singers = useSingerStore((s) => s.singers);
+
+  const singerGenerate = useSingerStore((s) => s.generate);
 
   // Clear stale playlist state when returning to home (prevents auto-redirect)
   useEffect(() => {
@@ -46,7 +49,22 @@ export function HomePage() {
   }, []);
 
   function handleSubmit() {
-    if (!query.trim() || isGenerating) return;
+    if (isGenerating) return;
+
+    const totalSingers = selectedSingerIds.length + customSingerNames.length;
+
+    // If singers selected but no query
+    if (!query.trim()) {
+      if (totalSingers >= 2) {
+        // Directly trigger multi-singer generation
+        const filters = useFilterStore.getState().getFilterPayload();
+        singerGenerate(filters);
+      } else if (totalSingers === 1) {
+        // Only 1 singer — open drawer to prompt user to select more
+        setShowSingerDrawer(true);
+      }
+      return;
+    }
     generate(query.trim(), useFilterStore.getState().getFilterPayload());
   }
 
@@ -74,7 +92,8 @@ export function HomePage() {
     }
   }, [videos, isGenerating, navigate]);
 
-  const hasSingers = selectedSingerIds.length > 0;
+  const totalSingers = selectedSingerIds.length + customSingerNames.length;
+  const hasSingers = totalSingers > 0;
   const selectedSingerObjects = singers.filter((s) =>
     selectedSingerIds.includes(s.id)
   );
@@ -112,6 +131,7 @@ export function HomePage() {
             onSubmit={handleSubmit}
             loading={isGenerating}
             suggestions={SUGGESTIONS}
+            hasSingers={hasSingers}
           />
 
           {/* Action row: compact singer controls + active filters */}

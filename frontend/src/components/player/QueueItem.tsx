@@ -7,7 +7,10 @@ interface QueueItemProps {
   isActive: boolean;
   isDraggable: boolean;
   isDropTarget: boolean;
+  isSelectable?: boolean;
+  isSelected?: boolean;
   onSelect: () => void;
+  onToggleSelect?: () => void;
   onDragStart: (index: number) => void;
   onDragOver: (index: number) => void;
   onDragEnd: () => void;
@@ -27,7 +30,10 @@ export function QueueItem({
   isActive,
   isDraggable,
   isDropTarget,
+  isSelectable,
+  isSelected,
   onSelect,
+  onToggleSelect,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -95,8 +101,32 @@ export function QueueItem({
           isActive
             ? "bg-blue-600/10 ring-1 ring-blue-500/30"
             : "hover:bg-neutral-800"
-        } ${isDropTarget ? "ring-1 ring-blue-500/20" : ""} ${isDraggable ? "select-none" : ""}`}
+        } ${isDropTarget ? "ring-1 ring-blue-500/20" : ""} ${isDraggable ? "select-none" : ""}
+        ${isSelected ? "ring-1 ring-blue-500/30 bg-blue-500/5" : ""}
+        `}
       >
+        {/* Selection checkbox */}
+        {isSelectable && (
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect?.();
+            }}
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all duration-150 ${
+              isSelected
+                ? "border-blue-500 bg-blue-500 text-white"
+                : "border-neutral-600 bg-transparent hover:border-blue-400"
+            }`}
+            aria-label={isSelected ? "Deselect video" : "Select video"}
+          >
+            {isSelected && (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </span>
+        )}
+
         {/* Drag handle — larger touch target */}
         {isDraggable && (
           <span

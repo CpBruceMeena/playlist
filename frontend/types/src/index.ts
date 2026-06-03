@@ -151,6 +151,42 @@ export interface MultiSingerResponse {
 }
 
 
+// ─── Saved Song Types ──────────────────────────────────────────
+export interface SavedSong {
+  id: string;
+  videoId: string;
+  title: string;
+  channelTitle: string;
+  thumbnailUrl: string;
+  duration: string;
+  durationSeconds: number;
+  singerName?: string;
+  singerId?: string;
+  savedAt: string;
+}
+
+// ─── Merge Types ──────────────────────────────────────────────
+export interface MergeVideoRequest {
+  id: string;
+  title: string;
+  url: string;
+}
+
+export interface MergedVideo {
+  id: string;
+  filename: string;
+  title: string;
+  songs: { id: string; title: string }[];
+  songCount: number;
+  duration: number;
+  createdAt: string;
+  videoUrl: string;
+}
+
+export interface MergeResponse extends MergedVideo {}
+
+
+
 // ─── Player Types ──────────────────────────────────────────────
 export type PlayerState = "unstarted" | "playing" | "paused" | "ended" | "buffering" | "cued";
 

@@ -6,12 +6,14 @@ import { QueueList, QueueHeader } from "../components/player/QueueList";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
 import { Spinner } from "../components/ui/Spinner";
+import { EmptyState } from "../components/feedback/EmptyState";
 import { usePlaylistStore } from "../stores/playlistStore";
 import { usePlayerStore } from "../stores/playerStore";
 import { useSavedPlaylistsStore } from "../stores/savedPlaylistsStore";
 import { useToastStore } from "../stores/toastStore";
 import { useFilterStore } from "../stores/filterStore";
 import { useSingerStore, hasSingerAttribution } from "../stores/singerStore";
+import { useSavedSongsStore } from "../stores/savedSongsStore";
 import { savePlaylistToBackend } from "../api/playlists";
 
 export function PlaylistPage() {
@@ -30,6 +32,15 @@ export function PlaylistPage() {
   const addToast = useToastStore((s) => s.addToast);
   const singerNames = useSingerStore((s) => s.singerNames);
   const clearGenerated = useSingerStore((s) => s.clearGenerated);
+  const loadSongs = useSavedSongsStore((s) => s.loadFromStorage);
+
+  // Load saved songs from storage on mount
+  useEffect(() => {
+    loadSongs();
+  }, [loadSongs]);
+
+  // Selection state for saving/merging songs
+  const [isSelecting, setIsSelecting] = useState(false);
 
   // Save dialog state
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -87,8 +98,9 @@ export function PlaylistPage() {
         }
 
         // Backend save failed — will fall back to localStorage below
+        const isNetworkError = backendMsg.includes("Failed to fetch") || backendMsg.includes("NetworkError") || backendMsg.includes("Network request failed");
         addToast({
-          message: "Backend unavailable, saving locally",
+          message: isNetworkError ? "Server not running — saved to browser storage" : "Backend save failed, saving locally",
           type: "warning",
           duration: 4000,
         });
@@ -125,15 +137,23 @@ export function PlaylistPage() {
   const isMultiSinger = hasSingerAttribution(queue);
   const singerCount = isMultiSinger ? Object.keys(singerNames).length : 0;
 
-  // Redirect to home if no playlist data is loaded (e.g., browser back button)
-  useEffect(() => {
-    if (videos.length === 0 && queue.length === 0 && !error) {
-      navigate("/", { replace: true });
-    }
-  }, [videos, queue, error, navigate]);
-
+  // Show empty state if no playlist data is loaded (instead of redirecting to home)
   if (videos.length === 0 && queue.length === 0 && !error) {
-    return null;
+    return (
+      <div className="min-h-screen bg-neutral-950 text-white">
+        <Header />
+        <main className="mx-auto max-w-5xl px-4 pt-24 text-center">
+          <EmptyState
+            title="No playlist loaded"
+            message="Generate a playlist from the home page or load one from your saved playlists to start watching."
+            suggestions={[
+              { label: "Generate a playlist", onClick: () => navigate("/") },
+              { label: "My Playlists", onClick: () => navigate("/my-playlists") },
+            ]}
+          />
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -183,10 +203,15 @@ export function PlaylistPage() {
                 repeatMode={repeatMode}
                 onToggleShuffle={toggleShuffle}
                 onToggleRepeat={toggleRepeat}
+                isSelecting={isSelecting}
+                onToggleSelect={() => setIsSelecting((prev) => !prev)}
               />
 
               <div className="max-h-[60vh] overflow-y-auto">
-                <QueueList />
+                <QueueList
+                  isSelecting={isSelecting}
+                  onToggleSelect={() => setIsSelecting((prev) => !prev)}
+                />
               </div>
             </div>
           </div>
