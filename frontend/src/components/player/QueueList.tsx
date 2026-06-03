@@ -13,9 +13,12 @@ export function QueueList() {
 
   const dragIndexRef = useRef<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  // Track drag state in state to avoid accessing ref during render
+  const [dragState, setDragState] = useState<number | null>(null);
 
   const handleDragStart = useCallback((index: number) => {
     dragIndexRef.current = index;
+    setDragState(index);
     setDragOverIndex(null);
   }, []);
 
@@ -31,6 +34,7 @@ export function QueueList() {
 
   const handleDragEnd = useCallback(() => {
     dragIndexRef.current = null;
+    setDragState(null);
     setDragOverIndex(null);
   }, []);
 
@@ -52,8 +56,9 @@ export function QueueList() {
           isActive={index === currentIndex}
           isDraggable={queue.length > 1}
           isDropTarget={
-            dragOverIndex === index && dragIndexRef.current !== index
+            dragOverIndex === index && dragState !== index
           }
+
           onSelect={() => setCurrentIndex(index)}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}

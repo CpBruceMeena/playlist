@@ -122,6 +122,7 @@ type SingerListItem struct {
 // MultiSingerRequest is the request for POST /api/v1/generate/multi-singer
 type MultiSingerRequest struct {
 	SingerIDs        []string       `json:"singerIds" binding:"required,min=2,max=5"`
+	CustomSingers    []string       `json:"customSingers,omitempty"`
 	ResultsPerSinger int            `json:"resultsPerSinger" binding:"required,min=3,max=15"`
 	Filters          FilterCriteria `json:"filters"`
 }
@@ -149,3 +150,4 @@ type HealthResponse struct {
 	Status    string `json:"status"`
 	Timestamp string `json:"timestamp"`
 }
+

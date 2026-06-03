@@ -13,6 +13,7 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
   const navigate = useNavigate();
   const singers = useSingerStore((s) => s.singers);
   const selectedSingerIds = useSingerStore((s) => s.selectedSingerIds);
+  const customSingerNames = useSingerStore((s) => s.customSingerNames);
   const isGenerating = useSingerStore((s) => s.isGenerating);
   const generationError = useSingerStore((s) => s.generationError);
   const generate = useSingerStore((s) => s.generate);
@@ -50,8 +51,8 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
 
   if (!open) return null;
 
-  const selectedCount = selectedSingerIds.length;
-  const canGenerate = selectedCount >= 2 && selectedCount <= 5;
+  const totalSelected = selectedSingerIds.length + customSingerNames.length;
+  const canGenerate = totalSelected >= 2 && totalSelected <= 5;
   const isGeneratingPlaylist = isGenerating;
 
   return (
@@ -89,9 +90,9 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
             <h2 className="text-base font-semibold text-white">Select Singers</h2>
           </div>
           <div className="flex items-center gap-3">
-            {selectedCount > 0 && (
+            {totalSelected > 0 && (
               <span className="rounded-full bg-blue-600/20 px-2.5 py-0.5 text-xs font-medium text-blue-300">
-                {selectedCount}/5
+                {totalSelected}/5
               </span>
             )}
             <button
@@ -117,10 +118,10 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {/* Selected singer chips at top of drawer */}
-          {selectedSingers.length > 0 && (
+          {(selectedSingers.length > 0 || customSingerNames.length > 0) && (
             <div className="mb-4 flex flex-wrap items-center gap-1.5 rounded-lg border border-blue-500/20 bg-blue-600/5 px-3 py-2.5">
               <span className="mr-0.5 text-xs font-medium text-blue-400 shrink-0">
-                Selected:
+                Selected ({totalSelected}):
               </span>
               {selectedSingers.map((singer) => (
                 <span
@@ -135,6 +136,31 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
                     }}
                     className="ml-0.5 rounded-full p-0.5 text-blue-300/60 transition-colors hover:bg-blue-500/20 hover:text-blue-200"
                     aria-label={`Remove ${singer.name}`}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <path d="M3 3l6 6M9 3l-6 6" />
+                    </svg>
+                  </button>
+                </span>
+              ))}
+              {/* Custom singer chips */}
+              {customSingerNames.map((name, idx) => (
+                <span
+                  key={`custom-${idx}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-purple-500/30 bg-purple-600/15 px-2 py-0.5 text-xs font-medium text-purple-300"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="shrink-0">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                  {name}
+                  <button
+                    onClick={() => {
+                      const store = useSingerStore.getState();
+                      store.removeCustomSinger(idx);
+                    }}
+                    className="ml-0.5 rounded-full p-0.5 text-purple-300/60 transition-colors hover:bg-purple-500/20 hover:text-purple-200"
+                    aria-label={`Remove ${name}`}
                   >
                     <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                       <path d="M3 3l6 6M9 3l-6 6" />
@@ -163,7 +189,7 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
 
         {/* Footer */}
         <div className="border-t border-neutral-800 px-5 py-4 space-y-3">
-          {selectedCount >= 2 && (
+          {totalSelected >= 2 && (
             <button
               onClick={handleGenerateCombined}
               disabled={!canGenerate || isGeneratingPlaylist}
@@ -178,7 +204,7 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
                   Generating...
                 </span>
               ) : (
-                `Generate Combined Playlist (${selectedCount} singers)`
+                `Generate Combined Playlist (${totalSelected} singers)`
               )}
             </button>
           )}
@@ -186,16 +212,16 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
           <button
             onClick={onClose}
             className={`w-full rounded-lg py-2.5 text-sm font-medium transition-colors ${
-              selectedCount >= 2
+              totalSelected >= 2
                 ? "border border-neutral-700 bg-neutral-800/50 text-neutral-300 hover:bg-neutral-700 hover:text-white"
-                : selectedCount === 1
+                : totalSelected === 1
                   ? "border border-neutral-700/50 bg-neutral-800/30 text-neutral-500 cursor-default"
                   : "border border-neutral-700 bg-neutral-800/50 text-neutral-300 hover:bg-neutral-700 hover:text-white"
             }`}
           >
-            {selectedCount >= 2
+            {totalSelected >= 2
               ? "Done"
-              : selectedCount === 1
+              : totalSelected === 1
                 ? "Select at least 2 singers"
                 : "Cancel"}
           </button>

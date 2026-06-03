@@ -15,6 +15,9 @@ interface SingerState {
   // Selection (max 5)
   selectedSingerIds: string[];
 
+  // Custom singer names entered by user
+  customSingerNames: string[];
+
   // Per-singer result count
   resultsPerSinger: number;
 
@@ -34,6 +37,8 @@ interface SingerState {
   setGenreFilter: (genre: string | null) => void;
   setSearchQuery: (query: string) => void;
   toggleSinger: (singerId: string) => void;
+  addCustomSinger: (name: string) => void;
+  removeCustomSinger: (index: number) => void;
   setResultsPerSinger: (count: number) => void;
   clearSelection: () => void;
   clearError: () => void;
@@ -48,6 +53,7 @@ export const useSingerStore = create<SingerState>((set, get) => ({
   isLoading: false,
   error: null,
   selectedSingerIds: [],
+  customSingerNames: [],
   resultsPerSinger: 10,
   isGenerating: false,
   generationError: null,
@@ -89,19 +95,35 @@ export const useSingerStore = create<SingerState>((set, get) => ({
     }
   },
 
+  addCustomSinger: (name) => {
+    const { customSingerNames, selectedSingerIds } = get();
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    // Check total count (DB singers + custom <= 5)
+    if (selectedSingerIds.length + customSingerNames.length >= 5) return;
+    // Avoid duplicates
+    if (customSingerNames.includes(trimmed)) return;
+    set({ customSingerNames: [...customSingerNames, trimmed] });
+  },
+
+  removeCustomSinger: (index) => {
+    const { customSingerNames } = get();
+    set({ customSingerNames: customSingerNames.filter((_, i) => i !== index) });
+  },
+
   setResultsPerSinger: (count) => set({ resultsPerSinger: count }),
 
-  clearSelection: () => set({ selectedSingerIds: [] }),
+  clearSelection: () => set({ selectedSingerIds: [], customSingerNames: [] }),
 
   clearError: () => set({ error: null, generationError: null }),
 
   clearGenerated: () => set({ singerNames: {} }),
 
   generate: async (filters) => {
-    const { selectedSingerIds, resultsPerSinger } = get();
+    const { selectedSingerIds, customSingerNames, resultsPerSinger } = get();
 
-    if (selectedSingerIds.length < 2) {
-      set({ generationError: "Please select at least 2 singers" });
+    if (selectedSingerIds.length + customSingerNames.length < 2) {
+      set({ generationError: "Please select at least 2 singers (DB or custom)" });
       return;
     }
 
@@ -112,6 +134,7 @@ export const useSingerStore = create<SingerState>((set, get) => ({
         selectedSingerIds,
         resultsPerSinger,
         filters,
+        customSingerNames.length > 0 ? customSingerNames : undefined,
       );
 
       if (!response.videos || response.videos.length === 0) {

@@ -31,10 +31,6 @@ export function DurationSlider({
   onDurationMinChange,
   onDurationMaxChange,
 }: DurationSliderProps) {
-  const activePreset = DURATION_PRESETS.find(
-    (p) => p.min === durationMin && p.max === durationMax,
-  );
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">

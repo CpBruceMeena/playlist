@@ -138,6 +138,7 @@ export interface SingerResponse {
 
 export interface MultiSingerRequest {
   singerIds: string[];
+  customSingers?: string[];       // Custom singer names not in DB
   resultsPerSinger: number;
   filters: FilterCriteria;
 }
@@ -148,6 +149,7 @@ export interface MultiSingerResponse {
   perSingerResults: Record<string, number>;
   singerNames: Record<string, string>;
 }
+
 
 // ─── Player Types ──────────────────────────────────────────────
 export type PlayerState = "unstarted" | "playing" | "paused" | "ended" | "buffering" | "cued";

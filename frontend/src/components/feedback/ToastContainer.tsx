@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useToastStore, type ToastType } from "../../stores/toastStore";
 
 const ICONS: Record<ToastType, string> = {

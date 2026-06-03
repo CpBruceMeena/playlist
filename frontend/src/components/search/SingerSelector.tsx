@@ -1,11 +1,6 @@
-import { useEffect, useState, useMemo } from "react";
-import type { Singer } from "@playlist/types";
+import { useEffect, useMemo, useState } from "react";
 import { useSingerStore } from "../../stores/singerStore";
-import { usePlaylistStore } from "../../stores/playlistStore";
-import { useFilterStore } from "../../stores/filterStore";
-import { useNavigate } from "react-router-dom";
 import { Input } from "../ui/Input";
-import { Button } from "../ui/Button";
 import { Spinner } from "../ui/Spinner";
 
 const GENRE_LABELS: Record<string, string> = {
@@ -24,30 +19,25 @@ const GENRE_COLORS: Record<string, string> = {
   english: "bg-purple-500/10 text-purple-300 border-purple-500/30",
 };
 
-const RESULTS_OPTIONS = [5, 10, 15];
-
 export function SingerSelector() {
-  const navigate = useNavigate();
   const {
     singers,
     genres,
     isLoading,
     error,
     selectedSingerIds,
-    resultsPerSinger,
-    isGenerating,
-    generationError,
+    customSingerNames,
     searchQuery,
     genreFilter,
     loadSingers,
     setGenreFilter,
     setSearchQuery,
     toggleSinger,
-    setResultsPerSinger,
-    generate,
+    addCustomSinger,
+    removeCustomSinger,
   } = useSingerStore();
 
-  const isGeneratingPlaylist = usePlaylistStore((s) => s.isGenerating);
+  const [customInput, setCustomInput] = useState("");
 
   // Load singers on mount
   useEffect(() => {
@@ -71,19 +61,9 @@ export function SingerSelector() {
     return result.sort((a, b) => b.popularityScore - a.popularityScore);
   }, [singers, genreFilter, searchQuery]);
 
-  const selectedCount = selectedSingerIds.length;
-  const canGenerate =
-    selectedCount >= 2 && selectedCount <= 5 && !isGenerating && !isGeneratingPlaylist;
-  const estimatedVideos = selectedCount * resultsPerSinger;
-
-  function handleGenerate() {
-    if (!canGenerate) return;
-    const filters = useFilterStore.getState().getFilterPayload();
-    generate(filters).then(() => {
-      // Navigate to playlist page when generation completes
-      navigate("/playlist");
-    });
-  }
+  const selectedCount = selectedSingerIds.length + customSingerNames.length;
+  const totalSelected = selectedCount;
+  const canAddMore = totalSelected < 5;
 
   return (
     <div className="space-y-5 animate-in">
@@ -168,12 +148,72 @@ export function SingerSelector() {
         </div>
       )}
 
+      {/* Custom singer input */}
+      <div className="border-t border-neutral-800/50 pt-4">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && customInput.trim()) {
+                addCustomSinger(customInput);
+                setCustomInput("");
+              }
+            }}
+            placeholder={canAddMore ? "Add a custom singer name..." : "Max 5 singers reached"}
+            disabled={!canAddMore}
+            className="flex-1 rounded-lg border border-neutral-700 bg-neutral-800/60 px-3 py-2 text-xs text-white outline-none transition-colors placeholder:text-neutral-500 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 disabled:opacity-40"
+          />
+          <button
+            onClick={() => {
+              if (customInput.trim() && canAddMore) {
+                addCustomSinger(customInput);
+                setCustomInput("");
+              }
+            }}
+            disabled={!customInput.trim() || !canAddMore}
+            className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+          >
+            Add
+          </button>
+        </div>
+        {customSingerNames.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {customSingerNames.map((name, idx) => (
+              <span
+                key={`custom-${idx}`}
+                className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-600/15 px-2.5 py-1 text-xs font-medium text-blue-300"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="shrink-0">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                {name}
+                <button
+                  onClick={() => removeCustomSinger(idx)}
+                  className="ml-0.5 rounded-full p-0.5 text-blue-300/60 transition-colors hover:bg-blue-500/20 hover:text-blue-200"
+                  aria-label={`Remove ${name}`}
+                >
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M3 3l6 6M9 3l-6 6" />
+                  </svg>
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <p className="mt-2 text-[10px] text-neutral-600">
+          Can't find a singer? Type their name above to add them as a custom search.
+        </p>
+      </div>
+
       {/* Singer grid */}
       {!isLoading && !error && filteredSingers.length > 0 && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {filteredSingers.map((singer) => {
             const isSelected = selectedSingerIds.includes(singer.id);
-            const isMaxed = !isSelected && selectedCount >= 5;
+            const isMaxed = !isSelected && totalSelected >= 5;
 
             return (
               <button
