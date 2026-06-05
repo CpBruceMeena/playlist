@@ -174,3 +174,30 @@ type HealthResponse struct {
 	Timestamp string `json:"timestamp"`
 }
 
+// --- Playlist Rename ---
+
+type RenamePlaylistRequest struct {
+	Name string `json:"name" binding:"required,min=1,max=100"`
+}
+
+// --- Saved Songs ---
+
+type SavedSongRequest struct {
+	Video     YouTubeVideo `json:"video" binding:"required"`
+	SingerID  string       `json:"singerId,omitempty"`
+	SingerName string      `json:"singerName,omitempty"`
+}
+
+type SavedSongResponse struct {
+	ID              string `json:"id"`
+	VideoID         string `json:"videoId"`
+	Title           string `json:"title"`
+	ChannelTitle    string `json:"channelTitle"`
+	ThumbnailURL    string `json:"thumbnailUrl"`
+	Duration        string `json:"duration"`
+	DurationSeconds int    `json:"durationSeconds"`
+	SingerName      string `json:"singerName,omitempty"`
+	SingerID        string `json:"singerId,omitempty"`
+	CreatedAt       string `json:"createdAt"`
+}
+

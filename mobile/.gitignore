@@ -1,0 +1,25 @@
+# Android build outputs
+build/
+*.apk
+*.apk.idsig
+*.aab
+output-metadata.json
+baselineProfiles/
+*.dex
+*.class
+
+# Gradle
+.gradle/
+local.properties
+*.iml
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Misc
+*.crg

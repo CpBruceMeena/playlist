@@ -47,5 +47,7 @@ backend/output/
 # Standalone video projects (not part of core app)
 video/
 
+.agents/
+
 # Logs
 *.log

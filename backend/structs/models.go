@@ -105,3 +105,18 @@ func (YouTubeCache) TableName() string {
 	return "youtube_cache"
 }
 
+// SavedSong stores user-saved songs
+// Uses an in-memory store (no DB table migration needed)
+type SavedSong struct {
+	ID              string `json:"id"`
+	VideoID         string `json:"videoId"`
+	Title           string `json:"title"`
+	ChannelTitle    string `json:"channelTitle"`
+	ThumbnailURL    string `json:"thumbnailUrl"`
+	Duration        string `json:"duration"`
+	DurationSeconds int    `json:"durationSeconds"`
+	SingerName      string `json:"singerName"`
+	SingerID        string `json:"singerId"`
+	CreatedAt       string `json:"createdAt"`
+}
+

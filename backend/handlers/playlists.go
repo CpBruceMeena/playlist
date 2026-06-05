@@ -197,6 +197,39 @@ func (h *PlaylistHandler) GetPlaylist(c *gin.Context) {
 	})
 }
 
+// RenamePlaylist handles PATCH /api/v1/playlists/:id
+func (h *PlaylistHandler) RenamePlaylist(c *gin.Context) {
+	id := c.Param("id")
+
+	var req structs.RenamePlaylistRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apiError(c, http.StatusBadRequest, "Invalid request: "+err.Error(), "VALIDATION_ERROR")
+		return
+	}
+
+	result := h.DB.Model(&structs.Playlist{}).Where("id = ?", id).Update("name", req.Name)
+	if result.Error != nil {
+		apiServerError(c, result.Error)
+		return
+	}
+	if result.RowsAffected == 0 {
+		apiError(c, http.StatusNotFound, "Playlist not found", "NOT_FOUND")
+		return
+	}
+
+	// Fetch and return updated playlist
+	var playlist structs.Playlist
+	if err := h.DB.Where("id = ?", id).First(&playlist).Error; err != nil {
+		apiServerError(c, err)
+		return
+	}
+
+	apiResponse(c, gin.H{
+		"id":   playlist.ID,
+		"name": playlist.Name,
+	})
+}
+
 // DeletePlaylist handles DELETE /api/v1/playlists/:id
 func (h *PlaylistHandler) DeletePlaylist(c *gin.Context) {
 	id := c.Param("id")
