@@ -319,6 +319,9 @@ export function MergedVideosPage() {
   const { mergedVideos, mergeJobs, setMergedVideos, removeMergedVideo } = useMergedVideosStore();
   const playingMergedVideo = usePlayerStore((s) => s.playingMergedVideo);
   const setPlayingMergedVideo = usePlayerStore((s) => s.setPlayingMergedVideo);
+  const addMergedNext = usePlayerStore((s) => s.addMergedNext);
+  const addMergedToQueue = usePlayerStore((s) => s.addMergedToQueue);
+  const mergedQueue = usePlayerStore((s) => s.mergedQueue);
   const addToast = useToastStore((s) => s.addToast);
   const [loading, setLoading] = useState(true);
 
@@ -427,12 +430,14 @@ export function MergedVideosPage() {
                       onPlay={() => handlePlayMergedVideo(video)}
                       onDelete={() => handleDeleteMergedVideo(video)}
                       onAddNext={() => {
-                        handlePlayMergedVideo(video);
-                        addToast({ message: `Now playing "${video.title}"`, type: "info", duration: 2000 });
+                        addMergedNext(video);
+                        const pos = playingMergedVideo ? 1 : 0;
+                        addToast({ message: `"${video.title}" will play next (position ${pos})`, type: "info", duration: 2000 });
                       }}
                       onAddToQueue={() => {
-                        handlePlayMergedVideo(video);
-                        addToast({ message: `Now playing "${video.title}"`, type: "info", duration: 2000 });
+                        addMergedToQueue(video);
+                        const pos = (playingMergedVideo ? mergedQueue.length : 0) + 1;
+                        addToast({ message: `"${video.title}" added to queue (position ${pos})`, type: "info", duration: 2000 });
                       }}
                       onAddToPlaylist={() => {
                         addToast({ message: `"${video.title}" added to playlist (coming soon)`, type: "info", duration: 2000 });

@@ -619,11 +619,13 @@ export function MySongsPage() {
                       onAddNext={() => {
                         const video = songToYouTubeVideo(song);
                         usePlayerStore.getState().addNext(video);
+                        navigate("/playlist");
                         addToast({ message: `"${song.title}" will play next`, type: "info", duration: 2000 });
                       }}
                       onAddToQueue={() => {
                         const video = songToYouTubeVideo(song);
                         usePlayerStore.getState().addToQueue(video);
+                        navigate("/playlist");
                         addToast({ message: `"${song.title}" added to queue`, type: "info", duration: 2000 });
                       }}
                       onAddToPlaylist={() => {
@@ -674,11 +676,13 @@ export function MySongsPage() {
                       onAddNext={() => {
                         const video = songToYouTubeVideo(song);
                         usePlayerStore.getState().addNext(video);
+                        navigate("/playlist");
                         addToast({ message: `"${song.title}" will play next`, type: "info", duration: 2000 });
                       }}
                       onAddToQueue={() => {
                         const video = songToYouTubeVideo(song);
                         usePlayerStore.getState().addToQueue(video);
+                        navigate("/playlist");
                         addToast({ message: `"${song.title}" added to queue`, type: "info", duration: 2000 });
                       }}
                       onAddToPlaylist={() => {

@@ -231,6 +231,7 @@ export function MyPlaylistsPage() {
 
   const handleAddPlaylistNext = (playlist: SavedPlaylist) => {
     addNext(playlist.videos);
+    navigate("/playlist");
     addToast({
       message: `"${playlist.name}" will play next (${playlist.videos.length} songs)`,
       type: "info",
@@ -240,6 +241,7 @@ export function MyPlaylistsPage() {
 
   const handleAddPlaylistToQueue = (playlist: SavedPlaylist) => {
     addToQueue(playlist.videos);
+    navigate("/playlist");
     addToast({
       message: `"${playlist.name}" added to queue (${playlist.videos.length} songs)`,
       type: "info",

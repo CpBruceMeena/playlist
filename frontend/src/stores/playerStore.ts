@@ -75,6 +75,7 @@ interface PlayerStateStore {
   // Merged video playback
   playingMergedVideo: MergedVideo | null;
   mergedVideoCurrentTime: number;
+  mergedQueue: MergedVideo[]; // Queue of merged videos to play next
 
   // Actions
   setReady: (ready: boolean) => void;
@@ -105,6 +106,9 @@ interface PlayerStateStore {
   clearQueue: () => void;
   setPlayingMergedVideo: (video: MergedVideo | null) => void;
   setMergedVideoCurrentTime: (time: number) => void;
+  addMergedNext: (video: MergedVideo) => void;
+  addMergedToQueue: (video: MergedVideo) => void;
+  playNextMerged: () => void;
 }
 
 /* ─── Debounced auto-save — persists state changes to sessionStorage ─── */
@@ -135,6 +139,7 @@ export const usePlayerStore = create<PlayerStateStore>((set, get) => {
     queue: session.queue ?? [],
     playingMergedVideo: null,
     mergedVideoCurrentTime: 0,
+    mergedQueue: [],
     queueInitCounter: 0,
     shuffleMode: session.shuffleMode ?? false,
     repeatMode: session.repeatMode ?? "none",
@@ -398,6 +403,67 @@ export const usePlayerStore = create<PlayerStateStore>((set, get) => {
       }),
 
     setMergedVideoCurrentTime: (time) => set({ mergedVideoCurrentTime: time }),
+
+    addMergedNext: (video) =>
+      set((state) => {
+        // Insert at position 1 (right after the current merged video),
+        // or at position 0 if nothing is currently playing
+        if (!state.playingMergedVideo) {
+          // Nothing playing — start immediately
+          return {
+            playingMergedVideo: video,
+            queue: [],
+            originalQueue: [],
+            currentIndex: -1,
+            isPlaying: true,
+            currentTime: 0,
+            videoDuration: video.duration,
+            playbackHistory: [],
+            mergedVideoCurrentTime: 0,
+          };
+        }
+        const newQueue = [...state.mergedQueue];
+        newQueue.splice(0, 0, video);
+        return { mergedQueue: newQueue };
+      }),
+
+    addMergedToQueue: (video) =>
+      set((state) => {
+        if (!state.playingMergedVideo) {
+          // Nothing playing — start immediately
+          return {
+            playingMergedVideo: video,
+            queue: [],
+            originalQueue: [],
+            currentIndex: -1,
+            isPlaying: true,
+            currentTime: 0,
+            videoDuration: video.duration,
+            playbackHistory: [],
+            mergedVideoCurrentTime: 0,
+          };
+        }
+        return {
+          mergedQueue: [...state.mergedQueue, video],
+        };
+      }),
+
+    playNextMerged: () => {
+      const state = get();
+      if (state.mergedQueue.length === 0) {
+        set({ isPlaying: false, mergedVideoCurrentTime: 0 });
+        return;
+      }
+      const [nextVideo, ...remaining] = state.mergedQueue;
+      set({
+        playingMergedVideo: nextVideo,
+        mergedQueue: remaining,
+        isPlaying: true,
+        mergedVideoCurrentTime: 0,
+        currentTime: 0,
+        videoDuration: nextVideo.duration,
+      });
+    },
   };
 });
 

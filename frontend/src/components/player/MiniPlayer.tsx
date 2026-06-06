@@ -25,6 +25,8 @@ export function MiniPlayer() {
   const setPlayingMergedVideo = usePlayerStore((s) => s.setPlayingMergedVideo);
   const mergedVideoCurrentTime = usePlayerStore((s) => s.mergedVideoCurrentTime);
   const setMergedVideoCurrentTime = usePlayerStore((s) => s.setMergedVideoCurrentTime);
+  const mergedQueue = usePlayerStore((s) => s.mergedQueue);
+  const playNextMerged = usePlayerStore((s) => s.playNextMerged);
 
   const currentVideo = queue[currentIndex];
   const isYouTubePlaying = queue.length > 0 && currentIndex >= 0;
@@ -111,7 +113,11 @@ export function MiniPlayer() {
     setMergedPlaying(false);
     setMergedCurrentTime(0);
     setMergedVideoCurrentTime(0);
-  }, [setMergedVideoCurrentTime]);
+    // Auto-advance to next merged video in queue
+    if (mergedQueue.length > 0) {
+      playNextMerged();
+    }
+  }, [setMergedVideoCurrentTime, mergedQueue.length, playNextMerged]);
 
   // Undo-friendly close for YouTube
   const handleClose = useCallback(

@@ -70,7 +70,8 @@ export function useYouTubePlayer(
   const playerInitRef = useRef(false);
 
   // When false (on /playlist page), the inline embed iframe handles playback
-  // so the off-screen YT.Player should not be created (avoids double audio)
+  // so the off-screen YT.Player should be paused to avoid double audio.
+  // The player itself stays alive to enable instant resume on navigation.
   const visible = options.visible ?? true;
 
   const {
@@ -125,9 +126,12 @@ export function useYouTubePlayer(
     };
   }, []);
 
-  // Initialize player when API is loaded, player is visible, and a video is available
+  // Initialize player when API is loaded and a video is available.
+  // NOTE: visible is NOT in deps — the player stays alive across navigations
+  // to avoid the costly destroy+recreate cycle that causes 1-2s stutter.
+  // When visible is false (inline player active), a separate effect pauses playback.
   useEffect(() => {
-    if (!apiLoaded || playerInitRef.current || !hasEverHadVideo || !visible) return;
+    if (!apiLoaded || playerInitRef.current || !hasEverHadVideo) return;
 
     // Guard against missing YouTube API
     if (!window.YT?.Player) {
@@ -141,7 +145,7 @@ export function useYouTubePlayer(
       player = new window.YT.Player(containerId, {
       height: "100%",
       width: "100%",
-      videoId: queue[currentIndex].id,
+      videoId: queue[currentIndex]?.id,
       playerVars: {
         autoplay: 0,
         controls: 1,
@@ -224,7 +228,41 @@ export function useYouTubePlayer(
       setIsPlayerReady(false);
       setReady(false);
     };
-  }, [apiLoaded, containerId, hasEverHadVideo, visible]);
+  }, [apiLoaded, containerId, hasEverHadVideo]);
+
+  // Pause/resume the off-screen YT.Player when navigating to/from the
+  // playlist page (where the inline iframe is active).
+  // The player itself stays alive — this avoids the costly destroy+recreate
+  // cycle that caused 1-2 second stutter on tab switches.
+  //
+  // NOTE: We check `queue.length > 0 && currentIndex >= 0` instead of
+  // `isPlaying` because the off-screen player's onStateChange sets
+  // isPlaying=false when paused (for inline player), causing a stale value.
+  //
+  // IMPORTANT: Browser autoplay policies block playVideo() in async effects.
+  // We use the mute→play→unmute pattern: playing muted is always allowed.
+  useEffect(() => {
+    if (!playerRef.current || !isPlayerReady) return;
+    if (!visible) {
+      // Inline player is active (on /playlist) — pause off-screen player
+      playerRef.current.pauseVideo();
+    } else if (queue.length > 0 && currentIndex >= 0) {
+      // Returning from playlist page — resume playback instantly
+      // Use muted play to bypass autoplay policy, then unmute
+      try {
+        const wasMuted = usePlayerStore.getState().isMuted;
+        playerRef.current.mute();
+        playerRef.current.playVideo();
+        setTimeout(() => {
+          if (!wasMuted && playerRef.current) {
+            playerRef.current.unMute();
+          }
+        }, 50);
+      } catch (err) {
+        console.warn("[Player] Error resuming playback:", err);
+      }
+    }
+  }, [visible, isPlayerReady, queue.length, currentIndex]);
 
   // Stop YouTube playback when a merged video starts playing
   // Prevents both players from playing audio simultaneously
@@ -268,8 +306,9 @@ export function useYouTubePlayer(
         if (!wasMuted) {
           player.unMute();
         }
-        // If user was playing, resume
-        if (isPlaying) {
+        // Only resume playback if the inline player is NOT active
+        // Prevents double audio when on /playlist (inline iframe handles playback)
+        if (isPlaying && visible) {
           player.playVideo();
         }
       }, 800);
