@@ -13,6 +13,7 @@ NC='\033[0m' # No Color
 
 BACKEND_PORT=3001
 FRONTEND_PORT=5173
+MERGE_SERVER_PORT=5002
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ─── Cleanup handler ───────────────────────────────────────────
@@ -26,6 +27,10 @@ cleanup() {
   if [ -n "$FRONTEND_PID" ]; then
     kill "$FRONTEND_PID" 2>/dev/null && wait "$FRONTEND_PID" 2>/dev/null
     echo -e "  ${GREEN}✓${NC} Frontend stopped"
+  fi
+  if [ -n "$MERGE_PID" ]; then
+    kill "$MERGE_PID" 2>/dev/null && wait "$MERGE_PID" 2>/dev/null
+    echo -e "  ${GREEN}✓${NC} Merge server stopped"
   fi
   echo -e "${GREEN}✅ All services stopped.${NC}"
 }
@@ -94,6 +99,33 @@ if ! command -v npm &>/dev/null; then
 fi
 echo -e "  ${GREEN}✓${NC} npm $(npm --version)"
 
+if ! command -v python3 &>/dev/null; then
+  echo -e "  ${RED}✗ Python 3 is not installed. Please install Python 3.10+.${NC}"
+  exit 1
+fi
+echo -e "  ${GREEN}✓${NC} Python 3 $(python3 --version | awk '{print $2}')"
+
+# Check Flask for the merge server
+if ! python3 -c "import flask" 2>/dev/null; then
+  echo -e "  ${YELLOW}⚠ Flask not found. Installing flask...${NC}"
+  pip3 install -q flask
+  echo -e "  ${GREEN}✓${NC} Flask installed"
+fi
+
+# Check ffmpeg (required by merge server for video concatenation)
+if ! command -v ffmpeg &>/dev/null; then
+  echo -e "  ${YELLOW}⚠ ffmpeg not found. Install with: brew install ffmpeg${NC}"
+else
+  echo -e "  ${GREEN}✓${NC} ffmpeg found"
+fi
+
+# Check yt-dlp (required by merge server for YouTube downloads)
+if ! command -v yt-dlp &>/dev/null; then
+  echo -e "  ${YELLOW}⚠ yt-dlp not found. Install with: brew install yt-dlp${NC}"
+else
+  echo -e "  ${GREEN}✓${NC} yt-dlp found"
+fi
+
 # Check frontend dependencies
 if [ ! -d "$PROJECT_DIR/frontend/node_modules" ]; then
   echo -e "  ${YELLOW}⚠ Frontend dependencies not found. Running npm install...${NC}"
@@ -109,6 +141,7 @@ echo ""
 echo -e "${CYAN}🔍 Checking ports...${NC}"
 kill_port $BACKEND_PORT
 kill_port $FRONTEND_PORT
+kill_port $MERGE_SERVER_PORT
 echo ""
 
 # ─── Start backend ─────────────────────────────────────────────
@@ -134,6 +167,22 @@ done
 echo -e "  ${GREEN}✓${NC} Backend is running"
 echo ""
 
+# ─── Start Python merge server ────────────────────────────────────
+echo -e "${CYAN}🚀 Starting Python merge server (port $MERGE_SERVER_PORT)...${NC}"
+python3 "$PROJECT_DIR/scripts/merge_server.py" &
+MERGE_PID=$!
+echo -e "  ${GREEN}✓${NC} Merge server PID: $MERGE_PID"
+
+sleep 2
+
+# Verify merge server started
+if kill -0 "$MERGE_PID" 2>/dev/null; then
+  echo -e "  ${GREEN}✓${NC} Merge server is running"
+else
+  echo -e "  ${YELLOW}⚠ Merge server may not have started. Check logs.${NC}"
+fi
+echo ""
+
 # ─── Start frontend ────────────────────────────────────────────
 echo -e "${CYAN}🚀 Starting frontend (port $FRONTEND_PORT)...${NC}"
 cd "$PROJECT_DIR/frontend"
@@ -157,14 +206,15 @@ done
 echo -e "  ${GREEN}✓${NC} Frontend is running"
 
 echo ""
-echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║   ✅ Both services are running!              ║${NC}"
-echo -e "${GREEN}║                                              ║${NC}"
-echo -e "${GREEN}║   Frontend:  http://localhost:$FRONTEND_PORT    ║${NC}"
-echo -e "${GREEN}║   Backend:   http://localhost:$BACKEND_PORT    ║${NC}"
-echo -e "${GREEN}║                                              ║${NC}"
-echo -e "${GREEN}║   Press Ctrl+C to stop all services.         ║${NC}"
-echo -e "${GREEN}╚══════════════════════════════════════════════╝${NC}"
+echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║   ✅ All 3 services are running!                     ║${NC}"
+echo -e "${GREEN}║                                                    ║${NC}"
+echo -e "${GREEN}║   Frontend:     http://localhost:$FRONTEND_PORT       ║${NC}"
+echo -e "${GREEN}║   Backend:      http://localhost:$BACKEND_PORT       ║${NC}"
+echo -e "${GREEN}║   Merge server: http://localhost:$MERGE_SERVER_PORT   ║${NC}"
+echo -e "${GREEN}║                                                    ║${NC}"
+echo -e "${GREEN}║   Press Ctrl+C to stop all services.                ║${NC}"
+echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 
 # ─── Wait for either process to exit ───────────────────────────

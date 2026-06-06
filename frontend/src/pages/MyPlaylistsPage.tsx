@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Header } from "../components/layout/Header";
+import { SidebarLayout } from "../components/layout/Sidebar";
 import { EmptyState } from "../components/feedback/EmptyState";
 import { Spinner } from "../components/ui/Spinner";
 import {
@@ -10,17 +10,37 @@ import {
 import { usePlayerStore } from "../stores/playerStore";
 import { useToastStore } from "../stores/toastStore";
 
-function SavedPlaylistCard({
+function formatDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+const PlaylistTile = memo(function PlaylistTile({
   playlist,
   onLoad,
+  onAddNext,
+  onAddToQueue,
   onDelete,
   onRename,
 }: {
   playlist: SavedPlaylist;
   onLoad: () => void;
+  onAddNext: () => void;
+  onAddToQueue: () => void;
   onDelete: () => void;
   onRename: (newName: string) => void;
 }) {
+  const playerActive = usePlayerStore(
+    (s) => (s.queue.length > 0 && s.currentIndex >= 0) || s.playingMergedVideo !== null,
+  );
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(playlist.name);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -28,7 +48,6 @@ function SavedPlaylistCard({
   function startEditing() {
     setEditValue(playlist.name);
     setIsEditing(true);
-    // Focus on next render
     setTimeout(() => inputRef.current?.select(), 0);
   }
 
@@ -45,39 +64,97 @@ function SavedPlaylistCard({
     setIsEditing(false);
   }
 
+  const firstThumb = playlist.videos[0]?.thumbnailUrl;
+
   return (
-    <div className="group relative flex items-center gap-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/5">
-      {/* Thumbnail collage */}
-      <div className="relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-lg">
-        {playlist.videos.slice(0, 3).map((v, i) => (
+    <div className="group relative flex flex-col overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/50 transition-all duration-200 hover:border-blue-500/40 hover:bg-neutral-900 hover:shadow-lg hover:shadow-blue-500/5">
+      {/* Thumbnail */}
+      <div className="relative aspect-video w-full overflow-hidden bg-gradient-to-br from-blue-600/20 to-purple-600/20">
+        {firstThumb ? (
           <img
-            key={v.id}
-            src={v.thumbnailUrl}
+            src={firstThumb}
             alt=""
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
-            className={`absolute h-full w-full object-cover transition-opacity ${
-              i === 0
-                ? "opacity-100"
-                : i === 1
-                  ? "opacity-0 group-hover:opacity-100"
-                  : "hidden sm:block sm:opacity-0 sm:group-hover:opacity-0"
-            }`}
-            style={
-              i === 1
-                ? { transitionDelay: "0ms" }
-                : i === 2
-                  ? { transitionDelay: "0ms" }
-                  : undefined
-            }
           />
-        ))}
-        <div className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="text-blue-400/30"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <line x1="9" y1="9" x2="15" y2="9" />
+              <line x1="9" y1="13" x2="13" y2="13" />
+              <line x1="9" y1="17" x2="11" y2="17" />
+            </svg>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+        {/* Hover play overlay */}
+        <div
+          onClick={(e) => { e.stopPropagation(); onLoad(); }}
+          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/0 transition-all duration-200 group-hover:bg-black/30"
+        >
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/90 opacity-0 shadow-lg shadow-blue-600/30 transition-all duration-200 group-hover:opacity-100 group-hover:scale-110">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+              <polygon points="8,5 8,19 19,12" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Video count badge */}
+        <div className="absolute bottom-1.5 right-1.5 rounded-md bg-black/80 px-1.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm">
           {playlist.videoCount}
         </div>
+
+        {/* Delete button — top-right corner, hover reveal */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="absolute right-1.5 top-1.5 z-20 flex h-7 w-7 items-center justify-center rounded-lg bg-black/60 text-neutral-400 opacity-0 backdrop-blur-sm transition-all duration-200 hover:bg-red-900/60 hover:text-red-400 group-hover:opacity-100"
+          aria-label="Delete playlist"
+          title="Delete"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <line x1="10" y1="11" x2="10" y2="17" />
+            <line x1="14" y1="11" x2="14" y2="17" />
+          </svg>
+        </button>
+
+        {/* Hover-reveal queue action buttons */}
+        {playerActive && (
+          <div className="absolute bottom-0 left-0 right-0 translate-y-full opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 z-10">
+            <div className="bg-gradient-to-t from-black/90 via-black/70 to-transparent px-2 pb-2 pt-6">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onAddNext(); }}
+                  className="flex-1 rounded-md bg-blue-600/20 py-1 text-[10px] font-medium text-blue-300 transition-colors hover:bg-blue-600/30 hover:text-blue-200"
+                >
+                  Next
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onAddToQueue(); }}
+                  className="flex-1 rounded-md bg-white/10 py-1 text-[10px] font-medium text-neutral-300 transition-colors hover:bg-white/20"
+                >
+                  Queue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Info */}
-      <div className="min-w-0 flex-1">
+      <div className="flex flex-1 flex-col justify-between gap-1 p-2.5">
+        {/* Name */}
         {isEditing ? (
           <input
             ref={inputRef}
@@ -90,54 +167,37 @@ function SavedPlaylistCard({
             }}
             onBlur={saveEdit}
             autoFocus
-            className="w-full rounded-md border border-blue-500/50 bg-neutral-800 px-2 py-0.5 text-sm font-semibold text-white outline-none"
+            className="w-full rounded-md border border-blue-500/50 bg-neutral-800 px-2 py-0.5 text-xs font-semibold text-white outline-none"
           />
         ) : (
           <button
             onClick={startEditing}
-            className="group/name block w-full text-left"
+            className="block w-full text-left"
             title="Click to rename"
           >
-            <h3 className="truncate text-sm font-semibold text-white transition-colors group-hover/name:text-blue-400">
+            <p className="line-clamp-2 text-xs font-medium leading-tight text-neutral-200 transition-colors group-hover:text-white">
               {playlist.name}
-              <span className="ml-1.5 inline-block text-xs text-neutral-600 opacity-0 transition-opacity group-hover/name:opacity-100">
-                ✏️
-              </span>
-            </h3>
+              <span className="ml-1 inline-block text-[10px] text-neutral-600 opacity-0 transition-opacity group-hover:opacity-100">✏️</span>
+            </p>
           </button>
         )}
-        <p className="mt-0.5 text-xs text-neutral-500">
-          {playlist.videoCount} video{playlist.videoCount !== 1 ? "s" : ""}
-          {playlist.query ? ` · "${playlist.query}"` : ""}
-        </p>
-        <p className="text-[11px] text-neutral-600">
-          Saved{" "}
-          {new Date(playlist.createdAt).toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
-        </p>
-      </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={onLoad}
-          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
-        >
-          Load
-        </button>
-        <button
-          onClick={onDelete}
-          className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:bg-red-900/50 hover:text-red-400"
-        >
-          Delete
-        </button>
+        {/* Query + date */}
+        <div className="flex flex-wrap items-center gap-1">
+          {playlist.query && (
+            <span className="truncate rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400 max-w-[100px]">
+              {playlist.query.length > 14 ? playlist.query.slice(0, 14) + "…" : playlist.query}
+            </span>
+          )}
+          <span className="text-[10px] text-neutral-500">
+            {formatDate(playlist.createdAt)}
+          </span>
+        </div>
+
       </div>
     </div>
   );
-}
+});
 
 export function MyPlaylistsPage() {
   const navigate = useNavigate();
@@ -156,13 +216,12 @@ export function MyPlaylistsPage() {
     loadFromStorage();
   }, [loadFromStorage]);
 
+  const addNext = usePlayerStore((s) => s.addPlaylistNext);
+  const addToQueue = usePlayerStore((s) => s.addPlaylistToQueue);
+
   const handleLoadPlaylist = (playlist: SavedPlaylist) => {
-    // Initialize the player with the saved videos
     initQueue(playlist.videos);
-
-    // Navigate to the playlist page
     navigate("/playlist");
-
     addToast({
       message: `Loaded "${playlist.name}"`,
       type: "success",
@@ -170,10 +229,26 @@ export function MyPlaylistsPage() {
     });
   };
 
-  const handleDeletePlaylist = (id: string, name: string) => {
-    // Use a closure flag to distinguish Undo from dismiss
-    let undoClicked = false;
+  const handleAddPlaylistNext = (playlist: SavedPlaylist) => {
+    addNext(playlist.videos);
+    addToast({
+      message: `"${playlist.name}" will play next (${playlist.videos.length} songs)`,
+      type: "info",
+      duration: 2500,
+    });
+  };
 
+  const handleAddPlaylistToQueue = (playlist: SavedPlaylist) => {
+    addToQueue(playlist.videos);
+    addToast({
+      message: `"${playlist.name}" added to queue (${playlist.videos.length} songs)`,
+      type: "info",
+      duration: 2500,
+    });
+  };
+
+  const handleDeletePlaylist = (id: string, name: string) => {
+    let undoClicked = false;
     addToast({
       message: `Deleted "${name}"`,
       type: "info",
@@ -182,58 +257,46 @@ export function MyPlaylistsPage() {
         label: "Undo",
         onClick: () => {
           undoClicked = true;
-          addToast({
-            message: `Restored "${name}"`,
-            type: "success",
-            duration: 2000,
-          });
+          addToast({ message: `Restored "${name}"`, type: "success", duration: 2000 });
         },
       },
     });
-
-    // Actually delete after the toast duration (with small buffer)
     setTimeout(() => {
-      if (!undoClicked) {
-        deletePlaylist(id);
-      }
+      if (!undoClicked) deletePlaylist(id);
     }, 5500);
   };
 
   const handleRenamePlaylist = (id: string, newName: string) => {
     const success = renamePlaylist(id, newName);
     if (success) {
-      addToast({
-        message: `Renamed to "${newName}"`,
-        type: "success",
-        duration: 2000,
-      });
+      addToast({ message: `Renamed to "${newName}"`, type: "success", duration: 2000 });
     }
   };
 
   if (!isLoaded) {
     return (
-      <div className="min-h-screen bg-neutral-950 text-white">
-        <Header />
-        <main className="mx-auto max-w-3xl px-4 pt-24">
+      <SidebarLayout>
+        <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4">
           <div className="flex justify-center py-16">
             <Spinner size="lg" />
           </div>
         </main>
-      </div>
+      </SidebarLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
-      <Header />
-      <main className="animate-page-in mx-auto max-w-3xl px-4 pt-20">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white">My Playlists</h1>
-          <p className="mt-1 text-sm text-neutral-400">
-            {playlists.length > 0
-              ? `You have ${playlists.length} saved playlist${playlists.length !== 1 ? "s" : ""}`
-              : "Playlists you save will appear here"}
-          </p>
+    <SidebarLayout>
+      <main className="animate-page-in mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-white">My Playlists</h1>
+            <p className="mt-0.5 text-xs text-neutral-500">
+              {playlists.length > 0
+                ? `You have ${playlists.length} saved playlist${playlists.length !== 1 ? "s" : ""}`
+                : "Playlists you save will appear here"}
+            </p>
+          </div>
         </div>
 
         {playlists.length === 0 ? (
@@ -241,30 +304,25 @@ export function MyPlaylistsPage() {
             title="No saved playlists yet"
             message="Generate a playlist you like, then save it from the playlist page."
             suggestions={[
-              {
-                label: "Generate a playlist",
-                onClick: () => navigate("/"),
-              },
+              { label: "Generate a playlist", onClick: () => navigate("/") },
             ]}
           />
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {playlists.map((playlist) => (
-              <SavedPlaylistCard
+              <PlaylistTile
                 key={playlist.id}
                 playlist={playlist}
                 onLoad={() => handleLoadPlaylist(playlist)}
-                onDelete={() =>
-                  handleDeletePlaylist(playlist.id, playlist.name)
-                }
-                onRename={(newName) =>
-                  handleRenamePlaylist(playlist.id, newName)
-                }
+                onAddNext={() => handleAddPlaylistNext(playlist)}
+                onAddToQueue={() => handleAddPlaylistToQueue(playlist)}
+                onDelete={() => handleDeletePlaylist(playlist.id, playlist.name)}
+                onRename={(newName) => handleRenamePlaylist(playlist.id, newName)}
               />
             ))}
           </div>
         )}
       </main>
-    </div>
+    </SidebarLayout>
   );
 }

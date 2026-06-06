@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -110,7 +111,7 @@ func (h *PlaylistHandler) SavePlaylist(c *gin.Context) {
 	tx.Commit()
 
 	apiResponse(c, gin.H{
-		"id":        playlist.ID,
+		"id":        fmt.Sprintf("%d", playlist.ID),
 		"name":      playlist.Name,
 		"videoCount": len(req.Videos),
 		"createdAt": playlist.CreatedAt,
@@ -127,16 +128,7 @@ func (h *PlaylistHandler) ListPlaylists(c *gin.Context) {
 		return
 	}
 
-	// Build response with video counts using a single subquery (avoids N+1)
-	type PlaylistItem struct {
-		ID         string    `json:"id"`
-		Name       string    `json:"name"`
-		Query      string    `json:"query"`
-		VideoCount int       `json:"videoCount"`
-		CreatedAt  time.Time `json:"createdAt"`
-	}
-
-	// Use a left join to count videos in a single query
+	// Use a left join to count videos in a single query (avoids N+1)
 	type playlistWithCount struct {
 		structs.Playlist
 		VideoCount int64 `gorm:"column:video_count"`
@@ -151,9 +143,9 @@ func (h *PlaylistHandler) ListPlaylists(c *gin.Context) {
 		Limit(50).
 		Find(&results)
 
-	items := make([]PlaylistItem, 0, len(results))
+	items := make([]structs.PlaylistItem, 0, len(results))
 	for _, r := range results {
-		items = append(items, PlaylistItem{
+		items = append(items, structs.PlaylistItem{
 			ID:         r.ID,
 			Name:       r.Name,
 			Query:      r.Query,
@@ -170,7 +162,12 @@ func (h *PlaylistHandler) ListPlaylists(c *gin.Context) {
 // GetPlaylist handles GET /api/v1/playlists/:id
 // Returns a single playlist with all its videos
 func (h *PlaylistHandler) GetPlaylist(c *gin.Context) {
-	id := c.Param("id")
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		apiError(c, http.StatusBadRequest, "Invalid playlist ID", "INVALID_ID")
+		return
+	}
 
 	var playlist structs.Playlist
 	if err := h.DB.Where("id = ?", id).First(&playlist).Error; err != nil {
@@ -189,7 +186,7 @@ func (h *PlaylistHandler) GetPlaylist(c *gin.Context) {
 	}
 
 	apiResponse(c, gin.H{
-		"id":        playlist.ID,
+		"id":        fmt.Sprintf("%d", playlist.ID),
 		"name":      playlist.Name,
 		"query":     playlist.Query,
 		"videos":    videos,
@@ -197,11 +194,54 @@ func (h *PlaylistHandler) GetPlaylist(c *gin.Context) {
 	})
 }
 
+// RenamePlaylist handles PATCH /api/v1/playlists/:id
+func (h *PlaylistHandler) RenamePlaylist(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		apiError(c, http.StatusBadRequest, "Invalid playlist ID", "INVALID_ID")
+		return
+	}
+
+	var req structs.RenamePlaylistRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apiError(c, http.StatusBadRequest, "Invalid request: "+err.Error(), "VALIDATION_ERROR")
+		return
+	}
+
+	result := h.DB.Model(&structs.Playlist{}).Where("id = ?", uint(id)).Update("name", req.Name)
+	if result.Error != nil {
+		apiServerError(c, result.Error)
+		return
+	}
+	if result.RowsAffected == 0 {
+		apiError(c, http.StatusNotFound, "Playlist not found", "NOT_FOUND")
+		return
+	}
+
+	// Fetch and return updated playlist
+	var playlist structs.Playlist
+	if err := h.DB.Where("id = ?", uint(id)).First(&playlist).Error; err != nil {
+		apiServerError(c, err)
+		return
+	}
+
+	apiResponse(c, gin.H{
+		"id":   fmt.Sprintf("%d", playlist.ID),
+		"name": playlist.Name,
+	})
+}
+
 // DeletePlaylist handles DELETE /api/v1/playlists/:id
 func (h *PlaylistHandler) DeletePlaylist(c *gin.Context) {
-	id := c.Param("id")
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		apiError(c, http.StatusBadRequest, "Invalid playlist ID", "INVALID_ID")
+		return
+	}
 
-	result := h.DB.Where("id = ?", id).Delete(&structs.Playlist{})
+	result := h.DB.Where("id = ?", uint(id)).Delete(&structs.Playlist{})
 	if result.Error != nil {
 		apiServerError(c, result.Error)
 		return

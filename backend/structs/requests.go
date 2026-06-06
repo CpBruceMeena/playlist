@@ -1,5 +1,9 @@
 package structs
 
+import (
+	"time"
+)
+
 // --- API Types (mirrors types/src/index.ts) ---
 
 // VideoType classification
@@ -27,6 +31,8 @@ type YouTubeVideo struct {
 	PublishedAt     string    `json:"publishedAt"`
 	Tags            []string  `json:"tags"`
 	VideoType       VideoType `json:"videoType"`
+	SingerID        string    `json:"singerId,omitempty"`
+	SingerName      string    `json:"singerName,omitempty"`
 }
 
 // FilterCriteria mirrors the TypeScript FilterCriteria
@@ -95,7 +101,7 @@ type AuthTokens struct {
 
 // UserProfile mirrors the TypeScript UserProfile
 type UserProfile struct {
-	ID        string `json:"id"`
+	ID        uint   `json:"id,string"`
 	Email     string `json:"email"`
 	Name      string `json:"name"`
 	AvatarURL string `json:"avatarUrl"`
@@ -111,12 +117,21 @@ type SingerResponse struct {
 
 // SingerListItem is a single singer in the list response
 type SingerListItem struct {
-	ID               string `json:"id"`
+	ID               uint   `json:"id,string"`
 	Name             string `json:"name"`
 	Genre            string `json:"genre"`
 	ThumbnailURL     string `json:"thumbnailUrl"`
 	YouTubeChannelID string `json:"youtubeChannelId"`
 	PopularityScore  int    `json:"popularityScore"`
+}
+
+// PlaylistItem is a single playlist in the list response
+type PlaylistItem struct {
+	ID         uint      `json:"id,string"`
+	Name       string    `json:"name"`
+	Query      string    `json:"query"`
+	VideoCount int       `json:"videoCount"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 // MultiSingerRequest is the request for POST /api/v1/generate/multi-singer
@@ -135,6 +150,29 @@ type MultiSingerResponse struct {
 	SingerNames     map[string]string `json:"singerNames"`
 }
 
+// --- Merge Types ---
+
+// MergeVideoRequest is a single video in a merge request
+type MergeVideoRequest struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	URL   string `json:"url"`
+}
+
+// MergeRequest is the request for POST /api/v1/merge
+type MergeRequest struct {
+	Videos []MergeVideoRequest `json:"videos" binding:"required,min=2"`
+}
+
+// MergeResponse is the response for POST /api/v1/merge
+type MergeResponse struct {
+	ID        string `json:"id"`
+	Filename  string `json:"filename"`
+	URL       string `json:"url"`
+	Duration  int    `json:"duration"`
+	Status    string `json:"status"`
+}
+
 // APIError represents a standard error response
 type APIError struct {
 	Error APIErrorDetail `json:"error"`
@@ -149,5 +187,32 @@ type APIErrorDetail struct {
 type HealthResponse struct {
 	Status    string `json:"status"`
 	Timestamp string `json:"timestamp"`
+}
+
+// --- Playlist Rename ---
+
+type RenamePlaylistRequest struct {
+	Name string `json:"name" binding:"required,min=1,max=100"`
+}
+
+// --- Saved Songs ---
+
+type SavedSongRequest struct {
+	Video     YouTubeVideo `json:"video" binding:"required"`
+	SingerID  string       `json:"singerId,omitempty"`
+	SingerName string      `json:"singerName,omitempty"`
+}
+
+type SavedSongResponse struct {
+	ID              string `json:"id"`
+	VideoID         string `json:"videoId"`
+	Title           string `json:"title"`
+	ChannelTitle    string `json:"channelTitle"`
+	ThumbnailURL    string `json:"thumbnailUrl"`
+	Duration        string `json:"duration"`
+	DurationSeconds int    `json:"durationSeconds"`
+	SingerName      string `json:"singerName,omitempty"`
+	SingerID        string `json:"singerId,omitempty"`
+	CreatedAt       string `json:"createdAt"`
 }
 

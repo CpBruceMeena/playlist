@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Header } from "../components/layout/Header";
+import { SidebarLayout } from "../components/layout/Sidebar";
 import { SearchInput } from "../components/search/SearchInput";
 import { FilterPanel } from "../components/search/FilterPanel";
 import { ActiveFilterBar } from "../components/search/ActiveFilterBar";
 import { SingerDrawer } from "../components/search/SingerDrawer";
-import { EmptyState } from "../components/feedback/EmptyState";
 import { LoadingSkeleton } from "../components/feedback/LoadingSkeleton";
 import { ErrorState } from "../components/feedback/ErrorState";
 import { useFilterStore } from "../stores/filterStore";
@@ -36,7 +35,10 @@ export function HomePage() {
     clearPlaylist,
   } = usePlaylistStore();
   const selectedSingerIds = useSingerStore((s) => s.selectedSingerIds);
+  const customSingerNames = useSingerStore((s) => s.customSingerNames);
   const singers = useSingerStore((s) => s.singers);
+
+  const singerGenerate = useSingerStore((s) => s.generate);
 
   // Clear stale playlist state when returning to home (prevents auto-redirect)
   useEffect(() => {
@@ -46,13 +48,23 @@ export function HomePage() {
   }, []);
 
   function handleSubmit() {
-    if (!query.trim() || isGenerating) return;
-    generate(query.trim(), useFilterStore.getState().getFilterPayload());
-  }
+    if (isGenerating) return;
 
-  function handleSuggestionClick(suggestion: string) {
-    setQuery(suggestion);
-    generate(suggestion, useFilterStore.getState().getFilterPayload());
+    const totalSingers = selectedSingerIds.length + customSingerNames.length;
+
+    // If singers selected but no query
+    if (!query.trim()) {
+      if (totalSingers >= 2) {
+        // Directly trigger multi-singer generation
+        const filters = useFilterStore.getState().getFilterPayload();
+        singerGenerate(filters);
+      } else if (totalSingers === 1) {
+        // Only 1 singer — open drawer to prompt user to select more
+        setShowSingerDrawer(true);
+      }
+      return;
+    }
+    generate(query.trim(), useFilterStore.getState().getFilterPayload());
   }
 
   function handleResetFilters() {
@@ -74,16 +86,15 @@ export function HomePage() {
     }
   }, [videos, isGenerating, navigate]);
 
-  const hasSingers = selectedSingerIds.length > 0;
+  const totalSingers = selectedSingerIds.length + customSingerNames.length;
+  const hasSingers = totalSingers > 0;
   const selectedSingerObjects = singers.filter((s) =>
     selectedSingerIds.includes(s.id)
   );
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
-      <Header />
-
-      <main className="animate-page-in mx-auto max-w-5xl px-4 pt-16 sm:pt-24">
+    <SidebarLayout noTopBar>
+      <main className="animate-page-in mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-4">
         {/* Hero section */}
         <div className="text-center">
           <div className="gradient-glow mb-6 inline-flex items-center justify-center rounded-2xl bg-blue-500/10 px-4 py-2">
@@ -112,6 +123,7 @@ export function HomePage() {
             onSubmit={handleSubmit}
             loading={isGenerating}
             suggestions={SUGGESTIONS}
+            hasSingers={hasSingers}
           />
 
           {/* Action row: compact singer controls + active filters */}
@@ -214,23 +226,13 @@ export function HomePage() {
               </div>
             )}
 
-            {!isGenerating && !error && videos.length === 0 && (
-              <EmptyState
-                title="Ready to create"
-                message="Type a description above and hit Generate to create your smart playlist."
-                suggestions={SUGGESTIONS.map((s) => ({
-                  label: s,
-                  onClick: () => handleSuggestionClick(s),
-                }))}
-                variant="inline"
-              />
-            )}
+
           </div>
         </div>
       </main>
 
       {/* Singer selection drawer */}
       <SingerDrawer open={showSingerDrawer} onClose={handleDrawerClose} />
-    </div>
+    </SidebarLayout>
   );
 }

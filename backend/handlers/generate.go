@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -131,9 +132,15 @@ func (h *GenerateHandler) Generate(c *gin.Context) {
 
 	filtered := h.FilterService.ApplyFilters(videos, svcFilters)
 
-	// Convert to API response format
+	// Convert to API response format, dedup by video ID
+	seen := make(map[string]struct{}, len(filtered))
 	resultVideos := make([]structs.YouTubeVideo, 0, len(filtered))
 	for _, v := range filtered {
+		if _, exists := seen[v.ID]; exists {
+			continue
+		}
+		seen[v.ID] = struct{}{}
+
 		videoType := h.FilterService.ClassifyVideoType(v)
 		resultVideos = append(resultVideos, structs.YouTubeVideo{
 			ID:              v.ID,
@@ -192,15 +199,21 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 	}
 	var singerSearches []singerSearch
 
-	// Fetch DB singers
+	// Fetch DB singers (convert string IDs to uint)
+	var singerUintIDs []uint
+	for _, sid := range req.SingerIDs {
+		if parsed, err := strconv.ParseUint(sid, 10, 64); err == nil {
+			singerUintIDs = append(singerUintIDs, uint(parsed))
+		}
+	}
 	var dbSingers []structs.Singer
-	if len(req.SingerIDs) > 0 {
-		if err := h.DB.Where("id IN ? AND is_active = ?", req.SingerIDs, true).Find(&dbSingers).Error; err != nil {
+	if len(singerUintIDs) > 0 {
+		if err := h.DB.Where("id IN ? AND is_active = ?", singerUintIDs, true).Find(&dbSingers).Error; err != nil {
 			apiServerError(c, err)
 			return
 		}
 		for _, s := range dbSingers {
-			singerSearches = append(singerSearches, singerSearch{ID: s.ID, Name: s.Name})
+			singerSearches = append(singerSearches, singerSearch{ID: fmt.Sprintf("%d", s.ID), Name: s.Name})
 		}
 	}
 
@@ -329,7 +342,8 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 		}(ss)
 	}
 
-	// Collect results (context-aware to handle request cancellation)
+	// Collect results with dedup by YouTube video ID (context-aware to handle request cancellation)
+	allVideosSeen := make(map[string]struct{})
 	var allVideos []structs.YouTubeVideo
 	perSingerResults := make(map[string]int)
 	singerNames := make(map[string]string)
@@ -354,10 +368,16 @@ CollectResults:
 				continue
 			}
 
-			perSingerResults[result.SingerID] = len(result.Videos)
-			totalQuota += 100 + len(result.Videos)
+			// Track how many unique videos we actually add from this singer
+			uniqueAdded := 0
 
 			for _, v := range result.Videos {
+				if _, exists := allVideosSeen[v.ID]; exists {
+					continue
+				}
+				allVideosSeen[v.ID] = struct{}{}
+				uniqueAdded++
+
 				videoType := h.FilterService.ClassifyVideoType(v)
 				allVideos = append(allVideos, structs.YouTubeVideo{
 					ID:              v.ID,
@@ -373,8 +393,13 @@ CollectResults:
 					PublishedAt:     v.PublishedAt,
 					Tags:            v.Tags,
 					VideoType:       structs.VideoType(videoType),
+					SingerID:        result.SingerID,
+					SingerName:      result.SingerName,
 				})
 			}
+
+			perSingerResults[result.SingerID] = uniqueAdded
+			totalQuota += 100 + len(result.Videos)
 		}
 	}
 

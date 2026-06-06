@@ -1,19 +1,19 @@
 import { useFilterStore } from "../../stores/filterStore";
 
-function formatRange(min: number | undefined, max: number | undefined): string {
+function formatRange(min: number | undefined, max: number | undefined): string | null {
   if (min !== undefined && max !== undefined) return `${min / 60}-${max / 60} min`;
   if (min !== undefined) return `>${min / 60} min`;
   if (max !== undefined) return `<${max / 60} min`;
   return null;
 }
 
-const UPLOAD_LABELS: Record<string, string> = {
+const uploadDateLabels: Record<string, string> = {
   last_week: "Past week",
   last_month: "Past month",
   last_year: "Past year",
 };
 
-const VIEW_LABELS: Record<number, string> = {
+const viewLabels: Record<number, string> = {
   1000: "1K+",
   10000: "10K+",
   100000: "100K+",
@@ -23,6 +23,7 @@ const VIEW_LABELS: Record<number, string> = {
 export function ActiveFilterBar() {
   const {
     isExpanded,
+    selectedDurationPresets,
     durationMin,
     durationMax,
     videoTypes,
@@ -55,14 +56,16 @@ export function ActiveFilterBar() {
   }
 
   // Non-default states
-  if (durationMin !== undefined || durationMax !== undefined) {
+  if (selectedDurationPresets.length > 0) {
+    chips.push({ label: `Duration: ${selectedDurationPresets.join(", ")}`, key: "duration" });
+  } else if (durationMin !== undefined || durationMax !== undefined) {
     const range = formatRange(durationMin, durationMax);
     if (range) chips.push({ label: `Duration: ${range}`, key: "duration" });
   }
 
   if (uploadDate.type !== "any") {
     chips.push({
-      label: `Upload: ${UPLOAD_LABELS[uploadDate.type] ?? uploadDate.type}`,
+      label: `Upload: ${uploadDateLabels[uploadDate.type] ?? uploadDate.type}`,
       key: "upload",
     });
   }
@@ -82,7 +85,7 @@ export function ActiveFilterBar() {
   }
 
   if (minViews !== undefined) {
-    const viewLabel = VIEW_LABELS[minViews] ?? `${minViews}+`;
+    const viewLabel = viewLabels[minViews] ?? `${minViews}+`;
     chips.push({ label: `Views: ${viewLabel}`, key: "views" });
   }
 

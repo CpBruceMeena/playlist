@@ -33,5 +33,21 @@ venv/
 .DS_Store
 Thumbs.db
 
+# Project documentation (internal only)
+cabinet/
+merged/
+
+# UI design exports
+ui_design/
+
+# Generated merge outputs
+output/
+backend/output/
+
+# Standalone video projects (not part of core app)
+video/
+
+.agents/
+
 # Logs
 *.log

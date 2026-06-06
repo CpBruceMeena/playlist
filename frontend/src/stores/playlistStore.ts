@@ -46,11 +46,27 @@ export const usePlaylistStore = create<PlaylistState>((set) => ({
 
       const sessionId = crypto.randomUUID();
 
-      // Initialize the player store with the new videos
-      usePlayerStore.getState().initQueue(response.videos);
+      // Dedup by YouTube video ID in case backend missed any
+      const seen = new Set<string>();
+      const dedupedVideos = response.videos.filter((v) => {
+        if (seen.has(v.id)) return false;
+        seen.add(v.id);
+        return true;
+      });
+
+      if (dedupedVideos.length === 0) {
+        set({
+          isGenerating: false,
+          error: "No videos found. Try a different search query or adjust your filters.",
+        });
+        return;
+      }
+
+      // Initialize the player store with the deduped videos
+      usePlayerStore.getState().initQueue(dedupedVideos);
 
       set({
-        videos: response.videos,
+        videos: dedupedVideos,
         isGenerating: false,
         error: null,
         sessionId,

@@ -146,27 +146,14 @@ export const useSingerStore = create<SingerState>((set, get) => ({
         return;
       }
 
-      // Annotate videos with singer attribution based on perSingerResults order
-      const annotatedVideos = [];
-      let videoIndex = 0;
-      for (const singerId of selectedSingerIds) {
-        const count = response.perSingerResults[singerId] || 0;
-        const singerName = response.singerNames[singerId] || "";
-        for (let i = 0; i < count && videoIndex < response.videos.length; i++) {
-          annotatedVideos.push({
-            ...response.videos[videoIndex],
-            singerId,
-            singerName,
-          });
-          videoIndex++;
-        }
-      }
-
-      // Append any remaining videos
-      while (videoIndex < response.videos.length) {
-        annotatedVideos.push(response.videos[videoIndex]);
-        videoIndex++;
-      }
+      // Singer names are now annotated by the backend directly on each video.
+      // The backend sets singerName + singerId during dedup, so this is reliable.
+      // Only fill in missing singerName for any videos that lack it.
+      const annotatedVideos = response.videos.map((v) => ({
+        ...v,
+        singerName: v.singerName || response.singerNames[v.singerId || ""] || "",
+        singerId: v.singerId || "",
+      }));
 
       // Initialize the player store with the annotated videos
       usePlayerStore.getState().initQueue(annotatedVideos);
