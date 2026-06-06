@@ -234,6 +234,8 @@ interface QueueHeaderProps {
   repeatMode: "none" | "all";
   onToggleShuffle: () => void;
   onToggleRepeat: () => void;
+  isSelecting?: boolean;
+  onToggleSelect?: () => void;
 }
 
 export function QueueHeader({

@@ -1,5 +1,9 @@
 package structs
 
+import (
+	"time"
+)
+
 // --- API Types (mirrors types/src/index.ts) ---
 
 // VideoType classification
@@ -27,6 +31,8 @@ type YouTubeVideo struct {
 	PublishedAt     string    `json:"publishedAt"`
 	Tags            []string  `json:"tags"`
 	VideoType       VideoType `json:"videoType"`
+	SingerID        string    `json:"singerId,omitempty"`
+	SingerName      string    `json:"singerName,omitempty"`
 }
 
 // FilterCriteria mirrors the TypeScript FilterCriteria
@@ -95,7 +101,7 @@ type AuthTokens struct {
 
 // UserProfile mirrors the TypeScript UserProfile
 type UserProfile struct {
-	ID        string `json:"id"`
+	ID        uint   `json:"id,string"`
 	Email     string `json:"email"`
 	Name      string `json:"name"`
 	AvatarURL string `json:"avatarUrl"`
@@ -111,12 +117,21 @@ type SingerResponse struct {
 
 // SingerListItem is a single singer in the list response
 type SingerListItem struct {
-	ID               string `json:"id"`
+	ID               uint   `json:"id,string"`
 	Name             string `json:"name"`
 	Genre            string `json:"genre"`
 	ThumbnailURL     string `json:"thumbnailUrl"`
 	YouTubeChannelID string `json:"youtubeChannelId"`
 	PopularityScore  int    `json:"popularityScore"`
+}
+
+// PlaylistItem is a single playlist in the list response
+type PlaylistItem struct {
+	ID         uint      `json:"id,string"`
+	Name       string    `json:"name"`
+	Query      string    `json:"query"`
+	VideoCount int       `json:"videoCount"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 // MultiSingerRequest is the request for POST /api/v1/generate/multi-singer

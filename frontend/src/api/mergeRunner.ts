@@ -5,6 +5,7 @@ import { useToastStore } from "../stores/toastStore";
 interface MergeSong {
   id: string;
   title: string;
+  thumbnailUrl?: string;
 }
 
 /**
@@ -16,6 +17,7 @@ interface MergeSong {
 export async function startMerge(
   songs: MergeSong[],
   navigate?: (path: string) => void,
+  mergeName?: string,
 ) {
   const addToast = useToastStore.getState().addToast;
   const { addMergeJob, updateMergeJob, removeMergeJob, addMergedVideo } =
@@ -41,9 +43,10 @@ export async function startMerge(
       id: s.id,
       title: s.title,
       url: `https://www.youtube.com/watch?v=${s.id}`,
+      thumbnailUrl: s.thumbnailUrl,
     }));
 
-    const result = await mergeVideos(mergeData);
+    const result = await mergeVideos(mergeData, mergeName);
 
     // Store merged video, remove processing job
     addMergedVideo(result);

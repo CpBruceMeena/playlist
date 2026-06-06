@@ -110,8 +110,9 @@ def handle_merge():
     if not isinstance(videos, list) or len(videos) < 2:
         return jsonify({"error": {"message": "At least 2 videos are required", "code": "INVALID_REQUEST"}}), 400
 
+    merge_name = data.get("name", "").strip()
     job_id = uuid.uuid4().hex[:16]
-    logger.info(f"[{job_id}] Starting merge of {len(videos)} videos")
+    logger.info(f"[{job_id}] Starting merge of {len(videos)} videos - name: {merge_name or 'auto'}")
 
     # Create temp working directory
     work_dir = Path(tempfile.mkdtemp(prefix=f"merge_{job_id}_"))
@@ -119,6 +120,9 @@ def handle_merge():
 
     try:
         # Download each video
+        # Use the first video's thumbnail as the merged result thumbnail
+        first_thumbnail = videos[0].get("thumbnailUrl", "") if videos else ""
+
         for i, video in enumerate(videos):
             vid_id = video.get("id", "")
             vid_title = video.get("title", f"video_{i}")
@@ -150,8 +154,9 @@ def handle_merge():
             for item in downloaded:
                 f.write(f"file '{item['path']}'\n")
 
-        # Output filename
-        safe_name = sanitize_filename(downloaded[0]["title"])
+        # Use provided name or auto-generate from first song
+        display_title = merge_name if merge_name else (sanitize_filename(downloaded[0]["title"]).replace("_", " ") + " (Merged)")
+        safe_name = sanitize_filename(merge_name) if merge_name else sanitize_filename(downloaded[0]["title"])
         output_filename = f"{safe_name}_{job_id[:8]}.mp4"
         output_path = MERGED_DIR / output_filename
 
@@ -176,7 +181,8 @@ def handle_merge():
         metadata = {
             "id": job_id,
             "filename": output_filename,
-            "title": safe_name.replace("_", " ") + " (Merged)",
+            "title": display_title,
+            "thumbnailUrl": first_thumbnail,
             "songs": [{"id": item["id"], "title": item["title"]} for item in downloaded],
             "songCount": len(downloaded),
             "duration": int(total_duration),
@@ -201,7 +207,7 @@ def handle_merge():
         if "codec" in stderr.lower() or "stream" in stderr.lower():
             logger.info(f"[{job_id}] Concat copy failed, retrying with re-encoding...")
             try:
-                safe_name = sanitize_filename(downloaded[0]["title"])
+                safe_name = sanitize_filename(merge_name) if merge_name else sanitize_filename(downloaded[0]["title"])
                 output_filename = f"{safe_name}_{job_id[:8]}.mp4"
                 output_path = MERGED_DIR / output_filename
 
@@ -228,7 +234,7 @@ def handle_merge():
                 metadata = {
                     "id": job_id,
                     "filename": output_filename,
-                    "title": safe_name.replace("_", " ") + " (Merged)",
+                    "title": display_title,
                     "songs": [{"id": item["id"], "title": item["title"]} for item in downloaded],
                     "songCount": len(downloaded),
                     "duration": int(total_duration),

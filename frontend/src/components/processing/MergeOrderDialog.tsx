@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Button } from "../ui/Button";
+import { Input } from "../ui/Input";
 
 interface MergeSong {
   id: string;
@@ -12,8 +13,8 @@ interface MergeSong {
 
 interface MergeOrderDialogProps {
   songs: MergeSong[];
-  /** Called when user confirms the merge with the final ordered list */
-  onConfirm: (ordered: MergeSong[]) => void;
+  /** Called when user confirms the merge with the final ordered list + name */
+  onConfirm: (ordered: MergeSong[], mergeName: string) => void;
   /** Called when user removes a song (from storage + from merge list) */
   onRemove?: (song: MergeSong) => void;
   onClose: () => void;
@@ -27,6 +28,7 @@ export function MergeOrderDialog({
 }: MergeOrderDialogProps) {
   // ordered: list of songs in the order the user tapped them
   const [ordered, setOrdered] = useState<MergeSong[]>([]);
+  const [mergeName, setMergeName] = useState("");
   // Track which songs were removed from storage
   const storageRemovedIdsRef = useRef<Set<string>>(new Set());
 
@@ -61,8 +63,9 @@ export function MergeOrderDialog({
   }, [initialSongs]);
 
   const handleConfirm = useCallback(() => {
-    onConfirm(ordered);
-  }, [ordered, onConfirm]);
+    const name = mergeName.trim() || `Merged (${ordered.length} songs)`;
+    onConfirm(ordered, name);
+  }, [ordered, mergeName, onConfirm]);
 
   const selectedCount = ordered.length;
   const unselected = initialSongs.filter(
@@ -76,9 +79,9 @@ export function MergeOrderDialog({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onKeyDown={(e) => e.key === "Escape" && onClose()}
     >
-      <div className="mx-4 w-full max-w-2xl rounded-xl border border-neutral-800 bg-neutral-900 shadow-2xl">
+      <div className="mx-4 flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl border border-neutral-800 bg-neutral-900 shadow-2xl">
         {/* Header */}
-        <div className="border-b border-neutral-800 px-5 py-4">
+        <div className="shrink-0 border-b border-neutral-800 px-5 py-4">
           <div className="flex items-start justify-between">
             <div>
               <h2 className="text-lg font-semibold text-white">
@@ -88,13 +91,37 @@ export function MergeOrderDialog({
                 Tap songs in the order you want them merged. Tap again to remove.
               </p>
             </div>
-            <span className="shrink-0 rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400">
-              {selectedCount} of {initialSongs.length} selected
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="shrink-0 rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400">
+                {selectedCount} of {initialSongs.length} selected
+              </span>
+              {/* Close button */}
+              <button
+                onClick={onClose}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-white"
+                aria-label="Cancel merge"
+                title="Cancel merge"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="px-5 py-4">
+        {/* Scrollable content */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {/* Instructions */}
           <div className="mb-4 rounded-lg border border-blue-900/40 bg-blue-950/30 px-4 py-3">
             <div className="flex items-start gap-3">
@@ -141,7 +168,7 @@ export function MergeOrderDialog({
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
-                {ordered.map((song, index) => (
+                {ordered.map((song) => (
                   <div key={song.id} className="relative group">
                     <button
                       onClick={() => handleTileTap(song)}
@@ -308,15 +335,28 @@ export function MergeOrderDialog({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-neutral-800 px-5 py-4">
-          <button
-            onClick={onClose}
-            className="rounded-lg px-3 py-2 text-sm font-medium text-neutral-400 transition-colors hover:text-white"
-          >
-            Cancel
-          </button>
-          <div className="flex items-center gap-2">
+        {/* Footer — sticky */}
+        <div className="shrink-0 border-t border-neutral-800 px-5 py-4">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex-1">
+              <Input
+                value={mergeName}
+                onChange={(e) => setMergeName(e.target.value)}
+                placeholder="Name your merged video (optional)"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && selectedCount >= 2) handleConfirm();
+                  if (e.key === "Escape") onClose();
+                }}
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={onClose}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-neutral-400 transition-colors hover:text-white"
+            >
+              Cancel
+            </button>
             <Button onClick={handleConfirm} disabled={selectedCount < 2}>
               Merge {selectedCount} song{selectedCount !== 1 ? "s" : ""}
             </Button>

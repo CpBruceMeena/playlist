@@ -3,8 +3,10 @@ import { apiClient } from "./client";
 
 export async function mergeVideos(
   videos: MergeVideoRequest[],
+  mergeName?: string,
 ): Promise<MergeResponse> {
   return apiClient.post<MergeResponse>("/merge", {
+    name: mergeName || "",
     videos,
   });
 }

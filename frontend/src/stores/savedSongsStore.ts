@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { YouTubeVideo, SavedSong } from "@playlist/types";
 
 const STORAGE_KEY = "saved-songs";
+const SINGER_REPAIR_KEY = "saved-songs-repair-v1";
 const MAX_SONGS = 500;
 
 interface SavedSongsState {
@@ -13,6 +14,7 @@ interface SavedSongsState {
   addSongs: (videos: YouTubeVideo[]) => { count: number } | { error: string };
   removeSong: (id: string) => void;
   clearAll: () => void;
+  repairSingerNames: (notify?: (msg: string) => void) => void;
 }
 
 function readFromStorage(): SavedSong[] {
@@ -66,6 +68,9 @@ export const useSavedSongsStore = create<SavedSongsState>((set, get) => ({
     if (get().isLoaded) return;
     const songs = readFromStorage();
     set({ songs, isLoaded: true });
+
+    // One-time repair: clear singer names that were misattributed by old bug
+    get().repairSingerNames();
   },
 
   addSongs: (videos: YouTubeVideo[]) => {
@@ -103,5 +108,32 @@ export const useSavedSongsStore = create<SavedSongsState>((set, get) => ({
   clearAll: () => {
     writeToStorage([]);
     set({ songs: [] });
+  },
+
+  repairSingerNames: (notify) => {
+    // Check if repair was already done
+    if (localStorage.getItem(SINGER_REPAIR_KEY)) return;
+
+    const current = get().songs;
+    const songsWithSingerNames = current.filter((s) => s.singerName);
+
+    if (songsWithSingerNames.length === 0) {
+      // No songs with singer names to repair, mark as done
+      localStorage.setItem(SINGER_REPAIR_KEY, "done");
+      return;
+    }
+
+    // Clear all singerName and singerId from existing songs
+    const repaired: SavedSong[] = current.map((s) => ({
+      ...s,
+      singerName: undefined,
+      singerId: undefined,
+    }));
+
+    writeToStorage(repaired);
+    set({ songs: repaired });
+    localStorage.setItem(SINGER_REPAIR_KEY, "done");
+
+    notify?.(`Cleared singer names for ${songsWithSingerNames.length} song${songsWithSingerNames.length !== 1 ? "s" : ""} to fix misattribution. Future saves will use correct names.`);
   },
 }));

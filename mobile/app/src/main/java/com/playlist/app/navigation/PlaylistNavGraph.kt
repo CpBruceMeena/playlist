@@ -39,56 +39,60 @@ fun PlaylistNavHost() {
                 }
             }
         ) { innerPadding ->
-            // Toast overlay at top
-            ToastContainer(
-                modifier = Modifier.align(Alignment.TopCenter)
-            )
-        NavHost(
-            navController = navController,
-            startDestination = NavRoutes.HOME,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(NavRoutes.HOME) {
-                HomeScreen(
-                    onNavigateToPlayer = {
-                        navController.navigate(NavRoutes.PLAYER)
-                    },
-                    onNavigateToSingers = {
-                        navController.navigate(NavRoutes.SINGERS)
+            Box(modifier = Modifier.fillMaxSize()) {
+                NavHost(
+                    navController = navController,
+                    startDestination = NavRoutes.HOME,
+                    modifier = Modifier.padding(innerPadding)
+                ) {
+                    composable(NavRoutes.HOME) {
+                        HomeScreen(
+                            onNavigateToPlayer = {
+                                navController.navigate(NavRoutes.PLAYER)
+                            },
+                            onNavigateToSingers = {
+                                navController.navigate(NavRoutes.SINGERS)
+                            }
+                        )
                     }
-                )
-            }
 
-            composable(NavRoutes.SINGERS) {
-                SingerSelectScreen(
-                    onNavigateToPlayer = {
-                        navController.navigate(NavRoutes.PLAYER)
+                    composable(NavRoutes.SINGERS) {
+                        SingerSelectScreen(
+                            onNavigateToPlayer = {
+                                navController.navigate(NavRoutes.PLAYER)
+                            }
+                        )
                     }
-                )
-            }
 
-            composable(NavRoutes.PLAYLISTS) {
-                PlaylistsScreen(
-                    onNavigateToPlayer = {
-                        navController.navigate(NavRoutes.PLAYER)
+                    composable(NavRoutes.PLAYLISTS) {
+                        PlaylistsScreen(
+                            onNavigateToPlayer = {
+                                navController.navigate(NavRoutes.PLAYER)
+                            }
+                        )
                     }
-                )
-            }
 
-            composable(NavRoutes.PLAYER) {
-                PlayerScreen()
-            }
-
-            composable(NavRoutes.SONGS) {
-                SongsScreen(
-                    onNavigateToPlayer = {
-                        navController.navigate(NavRoutes.PLAYER)
+                    composable(NavRoutes.PLAYER) {
+                        PlayerScreen()
                     }
-                )
-            }
 
-            composable(NavRoutes.MERGE) {
-                MergeScreen()
+                    composable(NavRoutes.SONGS) {
+                        SongsScreen(
+                            onNavigateToPlayer = {
+                                navController.navigate(NavRoutes.PLAYER)
+                            }
+                        )
+                    }
+
+                    composable(NavRoutes.MERGE) {
+                        MergeScreen()
+                    }
+                }
+
+                // Toast overlay at top
+                ToastContainer(
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
             }
         }
     }

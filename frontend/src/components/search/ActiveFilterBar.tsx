@@ -1,32 +1,24 @@
 import { useFilterStore } from "../../stores/filterStore";
 
-function formatRange(min: number | undefined, max: number | undefined): string {
+function formatRange(min: number | undefined, max: number | undefined): string | null {
   if (min !== undefined && max !== undefined) return `${min / 60}-${max / 60} min`;
   if (min !== undefined) return `>${min / 60} min`;
   if (max !== undefined) return `<${max / 60} min`;
   return null;
 }
 
-const UPLOAD_LABELS: Record<string, string> = {
+const uploadDateLabels: Record<string, string> = {
   last_week: "Past week",
   last_month: "Past month",
   last_year: "Past year",
 };
 
-const VIEW_LABELS: Record<number, string> = {
+const viewLabels: Record<number, string> = {
   1000: "1K+",
   10000: "10K+",
   100000: "100K+",
   1000000: "1M+",
 };
-
-const DURATION_PRESETS = [
-  { label: "< 1 min", min: undefined, max: 60 },
-  { label: "1-4 min", min: 60, max: 240 },
-  { label: "4-10 min", min: 240, max: 600 },
-  { label: "10-20 min", min: 600, max: 1200 },
-  { label: "> 20 min", min: 1200, max: undefined },
-];
 
 export function ActiveFilterBar() {
   const {
@@ -73,7 +65,7 @@ export function ActiveFilterBar() {
 
   if (uploadDate.type !== "any") {
     chips.push({
-      label: `Upload: ${UPLOAD_LABELS[uploadDate.type] ?? uploadDate.type}`,
+      label: `Upload: ${uploadDateLabels[uploadDate.type] ?? uploadDate.type}`,
       key: "upload",
     });
   }
@@ -93,7 +85,7 @@ export function ActiveFilterBar() {
   }
 
   if (minViews !== undefined) {
-    const viewLabel = VIEW_LABELS[minViews] ?? `${minViews}+`;
+    const viewLabel = viewLabels[minViews] ?? `${minViews}+`;
     chips.push({ label: `Views: ${viewLabel}`, key: "views" });
   }
 

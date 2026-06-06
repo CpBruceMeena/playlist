@@ -170,12 +170,14 @@ export interface MergeVideoRequest {
   id: string;
   title: string;
   url: string;
+  thumbnailUrl?: string;
 }
 
 export interface MergedVideo {
   id: string;
   filename: string;
   title: string;
+  thumbnailUrl?: string;
   songs: { id: string; title: string }[];
   songCount: number;
   duration: number;

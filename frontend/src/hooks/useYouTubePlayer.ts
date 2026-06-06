@@ -55,6 +55,9 @@ interface UseYouTubePlayerOptions {
   onReady?: () => void;
   onEnd?: () => void;
   onError?: (errorCode: number) => void;
+  /** When false, the YouTube iframe is visible inline (on /playlist) and the
+      off-screen YT.Player should not be created to avoid double audio. */
+  visible?: boolean;
 }
 
 export function useYouTubePlayer(
@@ -66,17 +69,33 @@ export function useYouTubePlayer(
   const [apiLoaded, setApiLoaded] = useState(false);
   const playerInitRef = useRef(false);
 
+  // When false (on /playlist page), the inline embed iframe handles playback
+  // so the off-screen YT.Player should not be created (avoids double audio)
+  const visible = options.visible ?? true;
+
   const {
     currentIndex,
     queue,
     isPlaying,
     volume,
     isMuted,
+    queueInitCounter,
+    playingMergedVideo,
     setReady,
     setPlaying,
     setCurrentTime,
     setVideoDuration,
   } = usePlayerStore();
+
+  // Track whether we've ever had a video queued — flips to true once and stays.
+  // Used to trigger player init when the first video becomes available.
+  const [hasEverHadVideo, setHasEverHadVideo] = useState(false);
+
+  useEffect(() => {
+    if (queue.length > 0 && currentIndex >= 0) {
+      setHasEverHadVideo(true);
+    }
+  }, [queue.length, currentIndex]);
 
   // Load the YouTube IFrame API
   useEffect(() => {
@@ -106,13 +125,20 @@ export function useYouTubePlayer(
     };
   }, []);
 
-  // Initialize player when API is loaded
+  // Initialize player when API is loaded, player is visible, and a video is available
   useEffect(() => {
-    if (!apiLoaded || playerInitRef.current || !queue[currentIndex]) return;
+    if (!apiLoaded || playerInitRef.current || !hasEverHadVideo || !visible) return;
 
-    playerInitRef.current = true;
+    // Guard against missing YouTube API
+    if (!window.YT?.Player) {
+      console.warn("[Player] YouTube API not available, skipping player init");
+      return;
+    }
 
-    const player = new window.YT.Player(containerId, {
+    let player: YTPlayer;
+    try {
+      playerInitRef.current = true;
+      player = new window.YT.Player(containerId, {
       height: "100%",
       width: "100%",
       videoId: queue[currentIndex].id,
@@ -176,17 +202,41 @@ export function useYouTubePlayer(
       },
     });
 
+    } catch (err) {
+      console.error("[Player] Failed to create YouTube player:", err);
+      playerInitRef.current = false;
+      return;
+    }
+
     return () => {
-      // Destroy the player on unmount
+      // CRITICAL: Never touch the container's DOM here! React's reconciliation will
+      // fail if we remove the YouTube iframe that React doesn't know about.
+      // Just stop playback and reset refs so the player can continue on next mount.
       if (playerRef.current) {
-        playerRef.current.destroy();
+        try {
+          playerRef.current.stopVideo();
+        } catch (err) {
+          console.warn("[Player] Error stopping player:", err);
+        }
         playerRef.current = null;
       }
       playerInitRef.current = false;
       setIsPlayerReady(false);
       setReady(false);
     };
-  }, [apiLoaded, containerId]);
+  }, [apiLoaded, containerId, hasEverHadVideo, visible]);
+
+  // Stop YouTube playback when a merged video starts playing
+  // Prevents both players from playing audio simultaneously
+  useEffect(() => {
+    if (playingMergedVideo && playerRef.current) {
+      try {
+        playerRef.current.stopVideo();
+      } catch (err) {
+        console.warn("[Player] Error stopping player for merged video:", err);
+      }
+    }
+  }, [playingMergedVideo]);
 
   // Sync volume
   useEffect(() => {
@@ -199,8 +249,8 @@ export function useYouTubePlayer(
     }
   }, [volume, isMuted, isPlayerReady]);
 
-  // Load new video when currentIndex changes
-  // Use loadVideoById with mute to pre-load content (muted load bypasses autoplay policy)
+  // Load new video when currentIndex changes (or queue is re-initialized)
+  // queueInitCounter ensures this effect fires even when currentIndex stays 0→0
   useEffect(() => {
     if (!playerRef.current || !isPlayerReady) return;
     const video = queue[currentIndex];
@@ -224,7 +274,7 @@ export function useYouTubePlayer(
         }
       }, 800);
     }
-  }, [currentIndex, isPlayerReady]);
+  }, [currentIndex, isPlayerReady, queueInitCounter]);
 
   // Sync play/pause state (doesn't fire on index change — handled above)
   useEffect(() => {

@@ -8,7 +8,7 @@ import (
 
 // User matches the Prisma User model
 type User struct {
-	ID        string `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	ID        uint   `gorm:"primaryKey"`
 	Email     string `gorm:"uniqueIndex;not null"`
 	Name      string `gorm:"not null"`
 	GoogleID  string `gorm:"uniqueIndex;column:google_id;not null"`
@@ -16,7 +16,7 @@ type User struct {
 
 	Playlists []Playlist `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
 
-	CreatedAt time.Time      `gorm:"column:created_at;autoCreateTime"`
+	CreatedAt time.Time      `gorm:"column:created_at;autoCreateTime;index"`
 	UpdatedAt time.Time      `gorm:"column:updated_at;autoUpdateTime"`
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
@@ -27,8 +27,8 @@ func (User) TableName() string {
 
 // Playlist matches the Prisma Playlist model
 type Playlist struct {
-	ID        string `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	UserID    string `gorm:"type:uuid;column:user_id;index"`
+	ID        uint   `gorm:"primaryKey"`
+	UserID    *uint  `gorm:"column:user_id;index"`
 	User      User   `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
 	Name      string `gorm:"type:varchar(255);not null"`
 	Query     string `gorm:"type:varchar(500);not null"`
@@ -37,7 +37,7 @@ type Playlist struct {
 
 	Videos []PlaylistVideo `gorm:"foreignKey:PlaylistID;constraint:OnDelete:CASCADE"`
 
-	CreatedAt time.Time      `gorm:"column:created_at;autoCreateTime"`
+	CreatedAt time.Time      `gorm:"column:created_at;autoCreateTime;index"`
 	UpdatedAt time.Time      `gorm:"column:updated_at;autoUpdateTime"`
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
@@ -48,10 +48,10 @@ func (Playlist) TableName() string {
 
 // PlaylistVideo matches the Prisma PlaylistVideo model
 type PlaylistVideo struct {
-	ID              string `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	PlaylistID      string `gorm:"type:uuid;column:playlist_id;index:idx_pv_playlist_pos,priority:1"`
+	ID              uint   `gorm:"primaryKey"`
+	PlaylistID      uint   `gorm:"column:playlist_id;index:idx_pv_playlist_pos,priority:1;not null"`
 	Playlist        Playlist `gorm:"foreignKey:PlaylistID;constraint:OnDelete:CASCADE"`
-	YoutubeID       string `gorm:"type:varchar(50);column:youtube_id;not null"`
+	YoutubeID       string `gorm:"type:varchar(50);column:youtube_id;not null;index"`
 	Title           string `gorm:"type:varchar(500);not null"`
 	Channel         string `gorm:"type:varchar(255);not null"`
 	ChannelID       string `gorm:"type:varchar(100);column:channel_id"`
@@ -68,15 +68,14 @@ func (PlaylistVideo) TableName() string {
 }
 
 // Singer represents a curated singer/artist
-// Stored in DB for quick access and selection
 type Singer struct {
-	ID               string `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	ID               uint   `gorm:"primaryKey" json:"id,string"`
 	Name             string `gorm:"type:varchar(255);not null;index:idx_singers_name" json:"name"`
 	Genre            string `gorm:"type:varchar(100);not null;index:idx_singers_genre" json:"genre"`
 	ThumbnailURL     string `gorm:"type:varchar(500);column:thumbnail_url" json:"thumbnailUrl"`
 	YouTubeChannelID string `gorm:"type:varchar(100);column:youtube_channel_id" json:"youtubeChannelId"`
 	Description      string `gorm:"type:text" json:"description"`
-	PopularityScore  int    `gorm:"column:popularity_score;default:0" json:"popularityScore"`
+	PopularityScore  int    `gorm:"column:popularity_score;default:0;index:idx_singers_popularity" json:"popularityScore"`
 	IsActive         bool   `gorm:"column:is_active;default:true" json:"isActive"`
 
 	CreatedAt time.Time      `gorm:"column:created_at;autoCreateTime" json:"-"`
@@ -90,7 +89,7 @@ func (Singer) TableName() string {
 
 // YouTubeCache stores YouTube API responses for testing/rate-limit fallback
 type YouTubeCache struct {
-	ID            string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	ID            uint      `gorm:"primaryKey" json:"id,string"`
 	CacheKey      string    `gorm:"type:varchar(500);uniqueIndex:idx_cache_key;not null" json:"-"`
 	CacheType     string    `gorm:"type:varchar(50);not null;index:idx_cache_type" json:"-"`
 	ResponseJSON  string    `gorm:"type:jsonb;not null" json:"-"`
@@ -105,8 +104,7 @@ func (YouTubeCache) TableName() string {
 	return "youtube_cache"
 }
 
-// SavedSong stores user-saved songs
-// Uses an in-memory store (no DB table migration needed)
+// SavedSong stores user-saved songs (in-memory only, not in DB)
 type SavedSong struct {
 	ID              string `json:"id"`
 	VideoID         string `json:"videoId"`
@@ -119,4 +117,3 @@ type SavedSong struct {
 	SingerID        string `json:"singerId"`
 	CreatedAt       string `json:"createdAt"`
 }
-

@@ -3,25 +3,28 @@ package com.playlist.app.ui.songs
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.MergeType
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.playlist.app.ui.theme.NeonColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,7 +44,7 @@ fun SongsScreen(
                 title = {
                     Text(
                         text = "My Songs",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = NeonColors.OnSurface
                     )
                 },
@@ -79,7 +82,7 @@ fun SongsScreen(
                 // Singer filter chips
                 if (singers.isNotEmpty()) {
                     LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.padding(vertical = 8.dp)
                     ) {
@@ -121,11 +124,11 @@ fun SongsScreen(
                     }
                 }
 
-                // Action bar (select all, play, merge)
+                // Compact action bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                        .padding(horizontal = 12.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -134,7 +137,7 @@ fun SongsScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = NeonColors.OnSurfaceVariant
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (selectedCount > 0) {
                             TextButton(onClick = {
                                 if (selectedCount == filteredSongs.size) viewModel.deselectAll()
@@ -155,7 +158,7 @@ fun SongsScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                            .padding(horizontal = 12.dp, vertical = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
@@ -178,15 +181,17 @@ fun SongsScreen(
                     }
                 }
 
-                // Song list
-                LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                // Song grid
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(160.dp),
+                    contentPadding = PaddingValues(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredSongs) { song ->
-                        SavedSongCard(
+                        SavedSongTile(
                             title = song.title,
-                            channelTitle = song.channelTitle,
+                            thumbnailUrl = song.thumbnailUrl,
                             singerName = song.singerName,
                             isSelected = uiState.selectedIds.contains(song.id),
                             onToggleSelect = { viewModel.toggleSelection(song.id) },
@@ -200,9 +205,9 @@ fun SongsScreen(
 }
 
 @Composable
-private fun SavedSongCard(
+private fun SavedSongTile(
     title: String,
-    channelTitle: String,
+    thumbnailUrl: String?,
     singerName: String?,
     isSelected: Boolean,
     onToggleSelect: () -> Unit,
@@ -213,55 +218,77 @@ private fun SavedSongCard(
     } else {
         NeonColors.SurfaceContainer
     }
+    val borderColor = if (isSelected) NeonColors.ElectricViolet else NeonColors.Outline.copy(alpha = 0.3f)
 
-    Row(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(bgColor)
-            .clickable(onClick = onToggleSelect)
-            .padding(start = 8.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Checkbox
-        Icon(
-            imageVector = if (isSelected) Icons.Filled.CheckCircle else Icons.Filled.MusicNote,
-            contentDescription = if (isSelected) "Selected" else "Not selected",
-            tint = if (isSelected) NeonColors.ElectricViolet else NeonColors.OnSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier
-                .size(24.dp)
-                .padding(end = 8.dp)
+            .clickable(onClick = onToggleSelect),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor),
+        border = CardDefaults.outlinedCardBorder().copy(
+            width = if (isSelected) 2.dp else 1.dp,
+            brush = androidx.compose.ui.graphics.SolidColor(borderColor)
         )
+    ) {
+        Box {
+            // Thumbnail
+            AsyncImage(
+                model = thumbnailUrl ?: "",
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp)
+                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+                contentScale = ContentScale.Crop
+            )
 
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = NeonColors.OnSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = channelTitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = NeonColors.OnSurfaceVariant
-            )
-            singerName?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = NeonColors.ElectricViolet
+            // Selection overlay
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(NeonColors.ElectricViolet.copy(alpha = 0.15f))
+                )
+            }
+
+            // Checkbox indicator
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = "Selected",
+                    tint = NeonColors.ElectricViolet,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .size(22.dp)
                 )
             }
         }
-        IconButton(onClick = onDelete) {
-            Icon(
-                imageVector = Icons.Filled.Delete,
-                contentDescription = "Remove song",
-                tint = NeonColors.ErrorRed.copy(alpha = 0.7f),
-                modifier = Modifier.size(20.dp)
+
+        // Info section
+        Column(
+            modifier = Modifier.padding(8.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = NeonColors.OnSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 16.sp
             )
+            if (singerName != null) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = singerName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NeonColors.ElectricViolet,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

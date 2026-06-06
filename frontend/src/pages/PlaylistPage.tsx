@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Header } from "../components/layout/Header";
+import { SidebarLayout } from "../components/layout/Sidebar";
 import { YouTubePlayer } from "../components/player/YouTubePlayer";
 import { QueueList, QueueHeader } from "../components/player/QueueList";
 import { Input } from "../components/ui/Input";
@@ -140,9 +140,8 @@ export function PlaylistPage() {
   // Show empty state if no playlist data is loaded (instead of redirecting to home)
   if (videos.length === 0 && queue.length === 0 && !error) {
     return (
-      <div className="min-h-screen bg-neutral-950 text-white">
-        <Header />
-        <main className="mx-auto max-w-5xl px-4 pt-24 text-center">
+      <SidebarLayout>
+        <main className="mx-auto max-w-5xl px-4 pt-6 text-center">
           <EmptyState
             title="No playlist loaded"
             message="Generate a playlist from the home page or load one from your saved playlists to start watching."
@@ -152,21 +151,42 @@ export function PlaylistPage() {
             ]}
           />
         </main>
-      </div>
+      </SidebarLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
-      <Header onBack={() => {
-        clearGenerated();
-        navigate("/");
-      }} showActions onSave={handleSave} />
-
+    <SidebarLayout
+      actions={
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => {
+              clearGenerated();
+              navigate("/");
+            }}
+            className="mr-1 flex h-8 w-8 items-center justify-center rounded-lg text-neutral-500 transition-all duration-200 hover:bg-white/5 hover:text-white"
+            aria-label="Go back"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <button
+            onClick={handleSave}
+            className="flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-neutral-300 transition-all duration-200 hover:bg-white/10 hover:text-white"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+            <span className="hidden sm:inline">Save</span>
+          </button>
+        </div>
+      }
+    >
       <main className="animate-page-in mx-auto max-w-6xl px-4 py-6">
         {/* Singer attribution banner */}
         {isMultiSinger && (
-          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-blue-900/40 bg-blue-950/20 px-4 py-3">
+          <div className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-blue-900/40 bg-blue-950/20 px-4 py-3">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 shrink-0">
               <path d="M9 18V5l12-2v13" />
               <circle cx="6" cy="18" r="3" />
@@ -272,6 +292,6 @@ export function PlaylistPage() {
         </div>
       )}
 
-    </div>
+    </SidebarLayout>
   );
 }

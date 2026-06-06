@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Header } from "../components/layout/Header";
+import { SidebarLayout } from "../components/layout/Sidebar";
 import { SearchInput } from "../components/search/SearchInput";
 import { FilterPanel } from "../components/search/FilterPanel";
 import { ActiveFilterBar } from "../components/search/ActiveFilterBar";
 import { SingerDrawer } from "../components/search/SingerDrawer";
-import { EmptyState } from "../components/feedback/EmptyState";
 import { LoadingSkeleton } from "../components/feedback/LoadingSkeleton";
 import { ErrorState } from "../components/feedback/ErrorState";
 import { useFilterStore } from "../stores/filterStore";
@@ -68,11 +67,6 @@ export function HomePage() {
     generate(query.trim(), useFilterStore.getState().getFilterPayload());
   }
 
-  function handleSuggestionClick(suggestion: string) {
-    setQuery(suggestion);
-    generate(suggestion, useFilterStore.getState().getFilterPayload());
-  }
-
   function handleResetFilters() {
     resetFilters();
     clearError();
@@ -99,10 +93,8 @@ export function HomePage() {
   );
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
-      <Header />
-
-      <main className="animate-page-in mx-auto max-w-5xl px-4 pt-16 sm:pt-24">
+    <SidebarLayout noTopBar>
+      <main className="animate-page-in mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-4">
         {/* Hero section */}
         <div className="text-center">
           <div className="gradient-glow mb-6 inline-flex items-center justify-center rounded-2xl bg-blue-500/10 px-4 py-2">
@@ -234,23 +226,13 @@ export function HomePage() {
               </div>
             )}
 
-            {!isGenerating && !error && videos.length === 0 && (
-              <EmptyState
-                title="Ready to create"
-                message="Type a description above and hit Generate to create your smart playlist."
-                suggestions={SUGGESTIONS.map((s) => ({
-                  label: s,
-                  onClick: () => handleSuggestionClick(s),
-                }))}
-                variant="inline"
-              />
-            )}
+
           </div>
         </div>
       </main>
 
       {/* Singer selection drawer */}
       <SingerDrawer open={showSingerDrawer} onClose={handleDrawerClose} />
-    </div>
+    </SidebarLayout>
   );
 }

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo, memo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Header } from "../components/layout/Header";
+import { SidebarLayout } from "../components/layout/Sidebar";
 import { EmptyState } from "../components/feedback/EmptyState";
 import { Spinner } from "../components/ui/Spinner";
 import type { SavedSong } from "@playlist/types";
@@ -76,6 +76,177 @@ function getUniqueSingers(songs: SavedSong[]): string[] {
   }
   return Array.from(singers).sort();
 }
+
+const SongTile = memo(function SongTile({
+  song,
+  isSelectable,
+  isSelected,
+  onToggleSelect,
+  onPlay,
+  onAddNext,
+  onAddToQueue,
+  onAddToPlaylist,
+  onRemove,
+}: {
+  song: SavedSong;
+  isSelectable?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
+  onPlay: () => void;
+  onAddNext?: () => void;
+  onAddToQueue?: () => void;
+  onAddToPlaylist?: () => void;
+  onRemove: () => void;
+}) {
+  const playerActive = usePlayerStore(
+    (s) => (s.queue.length > 0 && s.currentIndex >= 0) || s.playingMergedVideo !== null,
+  );
+  return (
+    <div className="group relative flex flex-col overflow-hidden rounded-xl border bg-neutral-900/50 transition-all duration-200 hover:border-blue-500/40 hover:bg-neutral-900 hover:shadow-lg hover:shadow-blue-500/5">
+      {/* Thumbnail - click anywhere to toggle selection in select mode */}
+      <div
+        className="relative aspect-video w-full overflow-hidden bg-neutral-800"
+        onClick={() => {
+          if (isSelectable) {
+            onToggleSelect?.();
+          }
+        }}
+      >
+        <img
+          src={song.thumbnailUrl}
+          alt=""
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+        />
+        {/* Dark gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+        {/* Duration badge */}
+        <div className="absolute bottom-1.5 right-1.5 rounded-md bg-black/80 px-1.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm">
+          {formatDuration(song.durationSeconds)}
+        </div>
+
+        {/* Hover play button — click to play */}
+        <div
+          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/0 transition-all duration-200 hover:bg-black/30"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isSelectable) onPlay();
+          }}
+        >
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/90 opacity-0 shadow-lg shadow-blue-600/30 transition-all duration-200 group-hover:opacity-100 group-hover:scale-110">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+              <polygon points="8,5 8,19 19,12" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Selection checkbox */}
+        {isSelectable && (
+          <div className="absolute left-2 top-2 z-10">
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSelect?.();
+              }}
+              className={`flex h-5 w-5 items-center justify-center rounded border transition-all duration-150 ${
+                isSelected
+                  ? "border-blue-500 bg-blue-500 text-white shadow-sm shadow-blue-500/30"
+                  : "border-white/60 bg-black/40 text-transparent hover:border-blue-400 hover:bg-blue-500/20"
+              }`}
+              aria-label={isSelected ? "Deselect" : "Select"}
+            >
+              {isSelected && (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </span>
+          </div>
+        )}
+
+        {/* Remove button on hover */}
+        {!isSelectable && (
+          <div className="absolute right-2 top-2 z-10 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-neutral-400 backdrop-blur-sm transition-colors hover:bg-red-500/80 hover:text-white"
+              aria-label={`Remove ${song.title}`}
+              title="Remove"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div
+        className="flex flex-1 flex-col justify-between gap-1.5 p-3 cursor-pointer"
+        onClick={() => {
+          if (isSelectable) {
+            onToggleSelect?.();
+          } else {
+            onPlay();
+          }
+        }}
+      >
+        <p className="line-clamp-2 text-xs font-medium leading-tight text-neutral-200 group-hover:text-white">
+          {song.title}
+        </p>
+        <div className="flex flex-wrap items-center gap-1">
+          {song.singerName ? (
+            <span className="truncate rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400">
+              {song.singerName}
+            </span>
+          ) : (
+            <span className="truncate text-[10px] text-neutral-500">
+              {song.channelTitle}
+            </span>
+          )}
+        </div>
+
+        {/* Hover-reveal queue action buttons — only when player is active */}
+        {!isSelectable && playerActive && (
+          <div className="absolute bottom-0 left-0 right-0 translate-y-full opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 z-10">
+            <div className="bg-gradient-to-t from-black/90 via-black/70 to-transparent px-2 pb-2 pt-6">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onAddNext?.(); }}
+                  className="flex-1 rounded-md bg-blue-600/20 py-1 text-[10px] font-medium text-blue-300 transition-colors hover:bg-blue-600/30 hover:text-blue-200"
+                >
+                  Play next
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onAddToQueue?.(); }}
+                  className="flex-1 rounded-md bg-white/10 py-1 text-[10px] font-medium text-neutral-300 transition-colors hover:bg-white/20"
+                >
+                  Queue
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onAddToPlaylist?.(); }}
+                  className="flex items-center justify-center rounded-md bg-white/10 p-1 text-neutral-300 transition-colors hover:bg-white/20 hover:text-white"
+                  aria-label="Add to playlist"
+                  title="Add to playlist"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
 
 export function MySongsPage() {
   const navigate = useNavigate();
@@ -207,12 +378,13 @@ export function MySongsPage() {
   }, [playlistName, selectedSongs, savePlaylistToStore, addToast, navigate]);
 
   const handleMergeDialogConfirm = useCallback(
-    (ordered: { id: string; videoId: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[]) => {
+    (ordered: { id: string; videoId: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[], mergeName: string) => {
       setShowMergeDialog(false);
 
       startMerge(
-        ordered.map((s) => ({ id: s.videoId, title: s.title })),
+        ordered.map((s) => ({ id: s.videoId, title: s.title, thumbnailUrl: s.thumbnailUrl })),
         navigate,
+        mergeName,
       );
 
       setIsSelecting(false);
@@ -267,58 +439,57 @@ export function MySongsPage() {
 
   if (!isLoaded) {
     return (
-      <div className="min-h-screen bg-neutral-950 text-white">
-        <Header />
-        <main className="mx-auto max-w-3xl px-4 pt-24">
+      <SidebarLayout>
+        <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4">
           <div className="flex justify-center py-16">
             <Spinner size="lg" />
           </div>
         </main>
-      </div>
+      </SidebarLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
-      <Header />
-      <main className="animate-page-in mx-auto max-w-3xl px-4 pt-20">
-        <div className="mb-8 flex items-center justify-between">
+    <SidebarLayout>
+      <main className="animate-page-in mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6">
+        {/* Header row */}
+        <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">My Songs</h1>
-            <p className="mt-1 text-sm text-neutral-400">
+            <h1 className="text-xl font-bold text-white">My Songs</h1>
+            <p className="mt-0.5 text-xs text-neutral-500">
               {isSelecting
                 ? `${selectedIds.length} of ${filteredSongs.length} selected`
                 : songs.length > 0
-                  ? `${songs.length} song${songs.length !== 1 ? "s" : ""} — ${allSingers.length} singer${allSingers.length !== 1 ? "s" : ""}`
+                  ? `${songs.length} song${songs.length !== 1 ? "s" : ""} · ${allSingers.length} singer${allSingers.length !== 1 ? "s" : ""}`
                   : "Songs you save will appear here"}
             </p>
           </div>
           {songs.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               {isSelecting ? (
                 <>
-                  {selectedIds.length > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <Button size="sm" variant="secondary" onClick={handleSaveAsPlaylist}>
-                        Save as Playlist
-                      </Button>
-                      <Button size="sm" onClick={handleMergeSelected}>
-                        Merge ({selectedIds.length})
-                      </Button>
-                    </div>
-                  )}
                   <button
                     onClick={selectedIds.length === filteredSongs.length ? deselectAll : selectAll}
                     className="text-xs font-medium text-blue-400 transition-colors hover:text-blue-300"
                   >
                     {selectedIds.length === filteredSongs.length ? "Deselect all" : "Select all"}
                   </button>
+                  {selectedIds.length > 0 && (
+                    <>
+                      <Button size="sm" variant="secondary" onClick={handleSaveAsPlaylist}>
+                        Save as Playlist
+                      </Button>
+                      <Button size="sm" onClick={handleMergeSelected}>
+                        Merge ({selectedIds.length})
+                      </Button>
+                    </>
+                  )}
                   <button
                     onClick={() => {
                       setIsSelecting(false);
                       setSelectedIds([]);
                     }}
-                    className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:text-white"
+                    className="rounded-lg bg-neutral-800 px-2.5 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:text-white"
                   >
                     Cancel
                   </button>
@@ -327,9 +498,9 @@ export function MySongsPage() {
                 <>
                   <button
                     onClick={() => setIsSelecting(true)}
-                    className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:text-white"
+                    className="rounded-lg bg-neutral-800 px-2.5 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:text-white"
                   >
-                    <span className="flex items-center gap-1.5">
+                    <span className="flex items-center gap-1">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="9 11 12 14 22 4" />
                         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
@@ -339,20 +510,16 @@ export function MySongsPage() {
                   </button>
                   <button
                     onClick={handlePlayAll}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
                   >
                     Play All
                   </button>
                   <button
                     onClick={() => {
                       clearAll();
-                      addToast({
-                        message: "All songs cleared",
-                        type: "info",
-                        duration: 2500,
-                      });
+                      addToast({ message: "All songs cleared", type: "info", duration: 2500 });
                     }}
-                    className="rounded-lg bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-400 transition-colors hover:bg-red-900/50 hover:text-red-400"
+                    className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:bg-red-900/50 hover:text-red-400"
                   >
                     Clear All
                   </button>
@@ -367,7 +534,7 @@ export function MySongsPage() {
           <div className="mb-6 flex flex-wrap items-center gap-2">
             <button
               onClick={() => setSingerFilter(null)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+              className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-all ${
                 singerFilter === null
                   ? "bg-blue-600 text-white"
                   : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200"
@@ -380,17 +547,15 @@ export function MySongsPage() {
               return (
                 <button
                   key={name}
-                  onClick={() =>
-                    setSingerFilter(name === singerFilter ? null : name)
-                  }
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                  onClick={() => setSingerFilter(name === singerFilter ? null : name)}
+                  className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-all ${
                     singerFilter === name
                       ? "bg-blue-600 text-white"
                       : "bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
                   }`}
                 >
                   {name}
-                  <span className="ml-1 opacity-70">({count})</span>
+                  <span className="ml-0.5 opacity-70">({count})</span>
                 </button>
               );
             })}
@@ -399,22 +564,23 @@ export function MySongsPage() {
 
         {/* Content */}
         {songs.length === 0 ? (
-          <EmptyState
-            title="No saved songs yet"
-            message="Generate a playlist, select songs you like, and save them here."
-            suggestions={[
-              {
-                label: "Generate a playlist",
-                onClick: () => navigate("/"),
-              },
-            ]}
-          />
+          <div className="mt-12">
+            <EmptyState
+              title="No saved songs yet"
+              message="Generate a playlist, select songs you like, and save them here."
+              suggestions={[
+                { label: "Generate a playlist", onClick: () => navigate("/") },
+              ]}
+            />
+          </div>
         ) : filteredSongs.length === 0 ? (
-          <EmptyState
-            title={`No songs from "${singerFilter}"`}
-            message="No songs match this filter. Try selecting a different singer."
-            variant="inline"
-          />
+          <div className="mt-12">
+            <EmptyState
+              title={`No songs from "${singerFilter}"`}
+              message="No songs match this filter. Try selecting a different singer."
+              variant="inline"
+            />
+          </div>
         ) : (
           <div className="flex flex-col gap-6">
             {/* Singer-grouped sections */}
@@ -422,40 +588,26 @@ export function MySongsPage() {
               <section key={singerName}>
                 <div className="mb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500/15">
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-blue-400"
-                      >
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/15">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400">
                         <path d="M9 18V5l12-2v13" />
                         <circle cx="6" cy="18" r="3" />
                         <circle cx="18" cy="16" r="3" />
                       </svg>
                     </div>
-                    <h2 className="text-sm font-semibold text-white">
-                      {singerName}
-                    </h2>
-                    <span className="text-xs text-neutral-500">
-                      {singerSongs.length} song{singerSongs.length !== 1 ? "s" : ""}
-                    </span>
+                    <h2 className="text-sm font-semibold text-white">{singerName}</h2>
+                    <span className="text-xs text-neutral-500">{singerSongs.length}</span>
                   </div>
                   <button
                     onClick={() => handlePlaySingerSongs(singerName)}
-                    className="rounded-lg bg-blue-600/10 px-3 py-1 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-600/20"
+                    className="rounded-lg bg-blue-600/10 px-2.5 py-1 text-[11px] font-medium text-blue-400 transition-colors hover:bg-blue-600/20"
                   >
                     Play all
                   </button>
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {singerSongs.map((song) => (
-                    <SongRow
+                    <SongTile
                       key={song.id}
                       song={song}
                       isSelectable={isSelecting}
@@ -464,14 +616,29 @@ export function MySongsPage() {
                       onPlay={() => {
                         if (!isSelecting) handlePlaySong(song);
                       }}
+                      onAddNext={() => {
+                        const video = songToYouTubeVideo(song);
+                        usePlayerStore.getState().addNext(video);
+                        addToast({ message: `"${song.title}" will play next`, type: "info", duration: 2000 });
+                      }}
+                      onAddToQueue={() => {
+                        const video = songToYouTubeVideo(song);
+                        usePlayerStore.getState().addToQueue(video);
+                        addToast({ message: `"${song.title}" added to queue`, type: "info", duration: 2000 });
+                      }}
+                      onAddToPlaylist={() => {
+                        const video = songToYouTubeVideo(song);
+                        const result = useSavedSongsStore.getState().addSongs([video]);
+                        if ("error" in result) {
+                          addToast({ message: result.error, type: "error", duration: 3000 });
+                        } else {
+                          addToast({ message: `"${song.title}" added to My Songs`, type: "success", duration: 2000 });
+                        }
+                      }}
                       onRemove={() => {
                         if (isSelecting) return;
                         removeSong(song.id);
-                        addToast({
-                          message: `Removed "${song.title}"`,
-                          type: "info",
-                          duration: 2500,
-                        });
+                        addToast({ message: `Removed "${song.title}"`, type: "info", duration: 2500 });
                       }}
                     />
                   ))}
@@ -484,32 +651,18 @@ export function MySongsPage() {
               <section>
                 {groups.length > 0 && (
                   <div className="mb-3 flex items-center gap-2">
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-neutral-500"
-                    >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-500">
                       <path d="M9 18V5l12-2v13" />
                       <circle cx="6" cy="18" r="3" />
                       <circle cx="18" cy="16" r="3" />
                     </svg>
-                    <h2 className="text-sm font-semibold text-neutral-400">
-                      Other Songs
-                    </h2>
-                    <span className="text-xs text-neutral-600">
-                      {ungrouped.length} song{ungrouped.length !== 1 ? "s" : ""}
-                    </span>
+                    <h2 className="text-sm font-semibold text-neutral-400">Other Songs</h2>
+                    <span className="text-xs text-neutral-600">{ungrouped.length}</span>
                   </div>
                 )}
-                <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {ungrouped.map((song) => (
-                    <SongRow
+                    <SongTile
                       key={song.id}
                       song={song}
                       isSelectable={isSelecting}
@@ -518,14 +671,29 @@ export function MySongsPage() {
                       onPlay={() => {
                         if (!isSelecting) handlePlaySong(song);
                       }}
+                      onAddNext={() => {
+                        const video = songToYouTubeVideo(song);
+                        usePlayerStore.getState().addNext(video);
+                        addToast({ message: `"${song.title}" will play next`, type: "info", duration: 2000 });
+                      }}
+                      onAddToQueue={() => {
+                        const video = songToYouTubeVideo(song);
+                        usePlayerStore.getState().addToQueue(video);
+                        addToast({ message: `"${song.title}" added to queue`, type: "info", duration: 2000 });
+                      }}
+                      onAddToPlaylist={() => {
+                        const video = songToYouTubeVideo(song);
+                        const result = useSavedSongsStore.getState().addSongs([video]);
+                        if ("error" in result) {
+                          addToast({ message: result.error, type: "error", duration: 3000 });
+                        } else {
+                          addToast({ message: `"${song.title}" added to My Songs`, type: "success", duration: 2000 });
+                        }
+                      }}
                       onRemove={() => {
                         if (isSelecting) return;
                         removeSong(song.id);
-                        addToast({
-                          message: `Removed "${song.title}"`,
-                          type: "info",
-                          duration: 2500,
-                        });
+                        addToast({ message: `Removed "${song.title}"`, type: "info", duration: 2500 });
                       }}
                     />
                   ))}
@@ -560,14 +728,10 @@ export function MySongsPage() {
           onKeyDown={(e) => e.key === "Escape" && setShowSaveDialog(false)}
         >
           <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl animate-in">
-            <h2 className="mb-1 text-lg font-semibold text-white">
-              Save as Playlist
-            </h2>
+            <h2 className="mb-1 text-lg font-semibold text-white">Save as Playlist</h2>
             <p className="mb-5 text-sm text-neutral-400">
-              {selectedSongs.length} song{selectedSongs.length !== 1 ? "s" : ""}{" "}
-              will be saved to your playlists.
+              {selectedSongs.length} song{selectedSongs.length !== 1 ? "s" : ""} will be saved to your playlists.
             </p>
-
             <Input
               value={playlistName}
               onChange={(e) => {
@@ -581,11 +745,7 @@ export function MySongsPage() {
               }}
               autoFocus
             />
-
-            {savePlaylistError && (
-              <p className="mt-2 text-xs text-red-400">{savePlaylistError}</p>
-            )}
-
+            {savePlaylistError && <p className="mt-2 text-xs text-red-400">{savePlaylistError}</p>}
             <div className="mt-5 flex items-center justify-end gap-3">
               <button
                 onClick={() => setShowSaveDialog(false)}
@@ -595,133 +755,14 @@ export function MySongsPage() {
               </button>
               <Button onClick={handleConfirmSaveAsPlaylist} disabled={savingPlaylist}>
                 {savingPlaylist ? (
-                  <span className="flex items-center gap-2">
-                    <Spinner size="sm" /> Saving...
-                  </span>
-                ) : (
-                  "Save"
-                )}
+                  <span className="flex items-center gap-2"><Spinner size="sm" /> Saving...</span>
+                ) : "Save"}
               </Button>
             </div>
           </div>
-        </div>
-      )}
+        </div>      )}
 
-    </div>
+    </SidebarLayout>
   );
 }
 
-function SongRow({
-  song,
-  isSelectable,
-  isSelected,
-  onToggleSelect,
-  onPlay,
-  onRemove,
-}: {
-  song: SavedSong;
-  isSelectable?: boolean;
-  isSelected?: boolean;
-  onToggleSelect?: () => void;
-  onPlay: () => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className={`group flex items-center gap-3 rounded-xl border bg-neutral-900/50 p-3 transition-all duration-200 ${
-      isSelected
-        ? "border-blue-500/40 bg-blue-500/5"
-        : "border-neutral-800 hover:border-blue-500/30 hover:bg-neutral-900"
-    }`}>
-      {/* Selection checkbox */}
-      {isSelectable && (
-        <span
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSelect?.();
-          }}
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all duration-150 ${
-            isSelected
-              ? "border-blue-500 bg-blue-500 text-white"
-              : "border-neutral-600 bg-transparent hover:border-blue-400"
-          }`}
-          aria-label={isSelected ? "Deselect" : "Select"}
-        >
-          {isSelected && (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          )}
-        </span>
-      )}
-
-      {/* Thumbnail */}
-      <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-lg">
-        <img
-          src={song.thumbnailUrl}
-          alt=""
-          className="h-full w-full object-cover"
-          loading="lazy"
-        />
-        <div className="absolute bottom-0.5 right-0.5 rounded bg-black/80 px-1 py-0.5 text-[10px] text-white">
-          {formatDuration(song.durationSeconds)}
-        </div>
-      </div>
-
-      {/* Info */}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-neutral-200">
-          {song.title}
-        </p>
-        <p className="flex items-center gap-1.5 text-xs text-neutral-500">
-          {song.channelTitle}
-          {song.singerName && (
-            <span className="rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400">
-              {song.singerName}
-            </span>
-          )}
-        </p>
-      </div>
-
-      {/* Actions */}
-      <div className={`flex items-center gap-1.5 transition-opacity ${
-        isSelectable ? "opacity-0" : "opacity-0 group-hover:opacity-100"
-      }`}>
-        <button
-          onClick={onPlay}
-          className="rounded-lg bg-blue-600/10 p-2 text-blue-400 transition-colors hover:bg-blue-600/20"
-          aria-label={`Play ${song.title}`}
-          title="Play"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-          >
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        </button>
-        <button
-          onClick={onRemove}
-          className="rounded-lg p-2 text-neutral-600 transition-colors hover:bg-red-900/30 hover:text-red-400"
-          aria-label={`Remove ${song.title}`}
-          title="Remove"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-          </svg>
-        </button>
-      </div>
-    </div>
-  );
-}
