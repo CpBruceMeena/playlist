@@ -40,12 +40,19 @@ export function HomePage() {
 
   const singerGenerate = useSingerStore((s) => s.generate);
 
-  // Clear stale playlist state when returning to home (prevents auto-redirect)
+  // Clear stale playlist state when returning to home
   useEffect(() => {
     if (videos.length > 0) {
       clearPlaylist();
     }
   }, []);
+
+  // Navigate to playlist page when videos are generated
+  useEffect(() => {
+    if (videos.length > 0 && !isGenerating) {
+      navigate("/playlist");
+    }
+  }, [videos.length, isGenerating, navigate]);
 
   function handleSubmit() {
     if (isGenerating) return;
@@ -55,11 +62,9 @@ export function HomePage() {
     // If singers selected but no query
     if (!query.trim()) {
       if (totalSingers >= 2) {
-        // Directly trigger multi-singer generation
         const filters = useFilterStore.getState().getFilterPayload();
         singerGenerate(filters);
       } else if (totalSingers === 1) {
-        // Only 1 singer — open drawer to prompt user to select more
         setShowSingerDrawer(true);
       }
       return;
@@ -78,13 +83,6 @@ export function HomePage() {
 
   const isZeroResultsError =
     error?.includes("No videos found") || error?.includes("adjust your filters");
-
-  // Navigate to playlist page when generation completes
-  useEffect(() => {
-    if (videos.length > 0 && !isGenerating) {
-      navigate("/playlist");
-    }
-  }, [videos, isGenerating, navigate]);
 
   const totalSingers = selectedSingerIds.length + customSingerNames.length;
   const hasSingers = totalSingers > 0;
@@ -116,7 +114,6 @@ export function HomePage() {
 
         {/* Search section */}
         <div className="mt-10 space-y-4">
-          {/* Search input */}
           <SearchInput
             value={query}
             onChange={setQuery}
@@ -126,9 +123,8 @@ export function HomePage() {
             hasSingers={hasSingers}
           />
 
-          {/* Action row: compact singer controls + active filters */}
+          {/* Action row */}
           <div className="flex flex-wrap items-center gap-1.5">
-            {/* Singer button — compact pill */}
             <button
               onClick={() => setShowSingerDrawer(true)}
               className={
@@ -160,7 +156,6 @@ export function HomePage() {
               )}
             </button>
 
-            {/* Selected singer chips — inline right after the button */}
             {selectedSingerObjects.map((singer) => (
               <span
                 key={singer.id}
@@ -181,7 +176,6 @@ export function HomePage() {
               </span>
             ))}
 
-            {/* Clear all link */}
             {hasSingers && (
               <button
                 onClick={() => {
@@ -193,14 +187,11 @@ export function HomePage() {
               </button>
             )}
 
-            {/* Active filter chips */}
             <ActiveFilterBar />
           </div>
 
-          {/* Filters */}
           <FilterPanel />
 
-          {/* Results area */}
           <div className="mt-6">
             {error && (
               <ErrorState
@@ -225,13 +216,10 @@ export function HomePage() {
                 <LoadingSkeleton variant="cards" count={6} />
               </div>
             )}
-
-
           </div>
         </div>
       </main>
 
-      {/* Singer selection drawer */}
       <SingerDrawer open={showSingerDrawer} onClose={handleDrawerClose} />
     </SidebarLayout>
   );

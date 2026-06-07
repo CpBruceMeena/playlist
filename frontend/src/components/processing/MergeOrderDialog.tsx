@@ -13,18 +13,50 @@ interface MergeSong {
 
 interface MergeOrderDialogProps {
   songs: MergeSong[];
-  /** Called when user confirms the merge with the final ordered list + name */
+  /** Called when user confirms with the final ordered list + name */
   onConfirm: (ordered: MergeSong[], mergeName: string) => void;
   /** Called when user removes a song (from storage + from merge list) */
   onRemove?: (song: MergeSong) => void;
   onClose: () => void;
+  /** Dialog mode — changes labels and button text */
+  mode?: "merge" | "playlist";
 }
+
+const MODE_LABELS: Record<string, {
+  title: string;
+  subtitle: string;
+  instruction: string;
+  buttonText: (count: number) => string;
+  skipButtonText: (count: number) => string;
+  inputPlaceholder: string;
+  allReadyText: (count: number) => string;
+}> = {
+  merge: {
+    title: "Order Songs for Merge",
+    subtitle: "Tap songs in the order you want them merged. Tap again to remove.",
+    instruction: "The first song you tap will be the first song in the merged video. Tap songs one by one to build the order.",
+    buttonText: (count) => `Merge ${count} song${count !== 1 ? "s" : ""}`,
+    skipButtonText: (count) => `Skip reorder — Merge all ${count}`,
+    inputPlaceholder: "Name your merged video (optional)",
+    allReadyText: (count) => `All ${count} songs are in order. Ready to merge!`,
+  },
+  playlist: {
+    title: "Order Songs for Playlist",
+    subtitle: "Tap songs in the order you want them saved. Tap again to remove.",
+    instruction: "The first song you tap will be the first song in the playlist. Tap songs one by one to build the order.",
+    buttonText: (count) => `Save ${count} song${count !== 1 ? "s" : ""} as Playlist`,
+    skipButtonText: (count) => `Skip reorder — Save all ${count}`,
+    inputPlaceholder: "Name your playlist (optional)",
+    allReadyText: (count) => `All ${count} songs are in order. Ready to save!`,
+  },
+};
 
 export function MergeOrderDialog({
   songs: initialSongs,
   onConfirm,
   onRemove,
   onClose,
+  mode = "merge",
 }: MergeOrderDialogProps) {
   // ordered: list of songs in the order the user tapped them
   const [ordered, setOrdered] = useState<MergeSong[]>([]);
@@ -67,12 +99,26 @@ export function MergeOrderDialog({
     onConfirm(ordered, name);
   }, [ordered, mergeName, onConfirm]);
 
+  const handleSkipReorder = useCallback(() => {
+    const available = initialSongs.filter(
+      (s) => !storageRemovedIdsRef.current.has(s.videoId),
+    );
+    const name = mergeName.trim() || `Merged (${available.length} songs)`;
+    onConfirm(available, name);
+  }, [initialSongs, mergeName, onConfirm]);
+
+  const minCount = mode === "playlist" ? 1 : 2;
   const selectedCount = ordered.length;
+  const availableCount = initialSongs.filter(
+    (s) => !storageRemovedIdsRef.current.has(s.videoId),
+  ).length;
   const unselected = initialSongs.filter(
     (s) =>
       !orderedIds.has(s.videoId) &&
       !storageRemovedIdsRef.current.has(s.videoId),
   );
+
+  const labels = MODE_LABELS[mode];
 
   return (
     <div
@@ -85,10 +131,10 @@ export function MergeOrderDialog({
           <div className="flex items-start justify-between">
             <div>
               <h2 className="text-lg font-semibold text-white">
-                Order Songs for Merge
+                {labels.title}
               </h2>
               <p className="mt-1 text-sm text-neutral-400">
-                Tap songs in the order you want them merged. Tap again to remove.
+                {labels.subtitle}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -143,9 +189,7 @@ export function MergeOrderDialog({
                 </svg>
               </div>
               <p className="text-xs text-blue-300/80">
-                <strong className="text-blue-200">The first song you tap will be the first song
-                in the merged video.</strong> Tap songs one by one to build the order.
-                Tap a selected song to remove it.
+                <strong className="text-blue-200">{labels.instruction}</strong>
               </p>
             </div>
           </div>
@@ -251,7 +295,7 @@ export function MergeOrderDialog({
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
                 <p className="text-xs text-green-300">
-                  All {selectedCount} songs are in order. Ready to merge!
+                  {labels.allReadyText(selectedCount)}
                 </p>
               </div>
             </div>
@@ -342,9 +386,9 @@ export function MergeOrderDialog({
               <Input
                 value={mergeName}
                 onChange={(e) => setMergeName(e.target.value)}
-                placeholder="Name your merged video (optional)"
+                placeholder={labels.inputPlaceholder}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && selectedCount >= 2) handleConfirm();
+                  if (e.key === "Enter" && selectedCount >= minCount) handleConfirm();
                   if (e.key === "Escape") onClose();
                 }}
               />
@@ -357,9 +401,18 @@ export function MergeOrderDialog({
             >
               Cancel
             </button>
-            <Button onClick={handleConfirm} disabled={selectedCount < 2}>
-              Merge {selectedCount} song{selectedCount !== 1 ? "s" : ""}
-            </Button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSkipReorder}
+                disabled={availableCount < minCount}
+                className="rounded-lg px-3 py-2 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {labels.skipButtonText(availableCount)}
+              </button>
+              <Button onClick={handleConfirm} disabled={selectedCount < minCount}>
+                {labels.buttonText(selectedCount)}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

@@ -1,17 +1,15 @@
-import { useCallback, useEffect, useState, useMemo, memo } from "react";
+import { useEffect, useState, useMemo, memo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarLayout } from "../components/layout/Sidebar";
 import { EmptyState } from "../components/feedback/EmptyState";
 import { Spinner } from "../components/ui/Spinner";
-import type { SavedSong } from "@playlist/types";
+import { PlaylistPlayerDialog } from "../components/player/PlaylistPlayerDialog";
+import { MergeOrderDialog } from "../components/processing/MergeOrderDialog";
 import { useSavedSongsStore } from "../stores/savedSongsStore";
 import { useSavedPlaylistsStore } from "../stores/savedPlaylistsStore";
-import { usePlayerStore } from "../stores/playerStore";
 import { useToastStore } from "../stores/toastStore";
-import { Button } from "../components/ui/Button";
-import { Input } from "../components/ui/Input";
-import { MergeOrderDialog } from "../components/processing/MergeOrderDialog";
 import { startMerge } from "../api/mergeRunner";
+import type { SavedSong } from "@playlist/types";
 
 function formatDuration(seconds: number): string {
   if (!seconds) return "0:00";
@@ -83,9 +81,6 @@ const SongTile = memo(function SongTile({
   isSelected,
   onToggleSelect,
   onPlay,
-  onAddNext,
-  onAddToQueue,
-  onAddToPlaylist,
   onRemove,
 }: {
   song: SavedSong;
@@ -93,14 +88,8 @@ const SongTile = memo(function SongTile({
   isSelected?: boolean;
   onToggleSelect?: () => void;
   onPlay: () => void;
-  onAddNext?: () => void;
-  onAddToQueue?: () => void;
-  onAddToPlaylist?: () => void;
   onRemove: () => void;
 }) {
-  const playerActive = usePlayerStore(
-    (s) => (s.queue.length > 0 && s.currentIndex >= 0) || s.playingMergedVideo !== null,
-  );
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-xl border bg-neutral-900/50 transition-all duration-200 hover:border-blue-500/40 hover:bg-neutral-900 hover:shadow-lg hover:shadow-blue-500/5">
       {/* Thumbnail - click anywhere to toggle selection in select mode */}
@@ -126,12 +115,14 @@ const SongTile = memo(function SongTile({
           {formatDuration(song.durationSeconds)}
         </div>
 
-        {/* Hover play button — click to play */}
+        {/* Hover play button — click to play (select mode: let click through to thumbnail) */}
         <div
           className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/0 transition-all duration-200 hover:bg-black/30"
           onClick={(e) => {
-            e.stopPropagation();
-            if (!isSelectable) onPlay();
+            if (!isSelectable) {
+              e.stopPropagation();
+              onPlay();
+            }
           }}
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/90 opacity-0 shadow-lg shadow-blue-600/30 transition-all duration-200 group-hover:opacity-100 group-hover:scale-110">
@@ -165,24 +156,22 @@ const SongTile = memo(function SongTile({
           </div>
         )}
 
-        {/* Remove button on hover */}
+        {/* Remove button — always visible */}
         {!isSelectable && (
-          <div className="absolute right-2 top-2 z-10 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
-              className="flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-neutral-400 backdrop-blur-sm transition-colors hover:bg-red-500/80 hover:text-white"
-              aria-label={`Remove ${song.title}`}
-              title="Remove"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-            </button>
-          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-neutral-400 backdrop-blur-sm transition-colors hover:bg-red-500/80 hover:text-white"
+            aria-label={`Remove ${song.title}`}
+            title="Remove"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+          </button>
         )}
       </div>
 
@@ -211,38 +200,6 @@ const SongTile = memo(function SongTile({
             </span>
           )}
         </div>
-
-        {/* Hover-reveal queue action buttons — only when player is active */}
-        {!isSelectable && playerActive && (
-          <div className="absolute bottom-0 left-0 right-0 translate-y-full opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 z-10">
-            <div className="bg-gradient-to-t from-black/90 via-black/70 to-transparent px-2 pb-2 pt-6">
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={(e) => { e.stopPropagation(); onAddNext?.(); }}
-                  className="flex-1 rounded-md bg-blue-600/20 py-1 text-[10px] font-medium text-blue-300 transition-colors hover:bg-blue-600/30 hover:text-blue-200"
-                >
-                  Play next
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onAddToQueue?.(); }}
-                  className="flex-1 rounded-md bg-white/10 py-1 text-[10px] font-medium text-neutral-300 transition-colors hover:bg-white/20"
-                >
-                  Queue
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onAddToPlaylist?.(); }}
-                  className="flex items-center justify-center rounded-md bg-white/10 p-1 text-neutral-300 transition-colors hover:bg-white/20 hover:text-white"
-                  aria-label="Add to playlist"
-                  title="Add to playlist"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -253,20 +210,21 @@ export function MySongsPage() {
   const addToast = useToastStore((s) => s.addToast);
   const { songs, isLoaded, loadFromStorage, removeSong, clearAll } =
     useSavedSongsStore();
-  const initQueue = usePlayerStore((s) => s.initQueue);
 
   const [singerFilter, setSingerFilter] = useState<string | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  // Save-as-playlist state
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  // Player dialog state
+  const [playerDialog, setPlayerDialog] = useState<{
+    videos: { id: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[];
+    initialIndex: number;
+    title: string;
+  } | null>(null);
 
-  // Merge order dialog state
+  // Order dialogs
+  const [showSaveOrderDialog, setShowSaveOrderDialog] = useState(false);
   const [showMergeDialog, setShowMergeDialog] = useState(false);
-  const [playlistName, setPlaylistName] = useState("");
-  const [savingPlaylist, setSavingPlaylist] = useState(false);
-  const [savePlaylistError, setSavePlaylistError] = useState<string | null>(null);
   const savePlaylistToStore = useSavedPlaylistsStore((s) => s.savePlaylist);
 
   useEffect(() => {
@@ -319,78 +277,131 @@ export function MySongsPage() {
     setSelectedIds([]);
   }, []);
 
-  const handleSaveAsPlaylist = useCallback(() => {
-    setPlaylistName(`Playlist (${selectedSongs.length} songs)`);
-    setSavePlaylistError(null);
-    setShowSaveDialog(true);
-  }, [selectedSongs.length]);
+  // ── Save as Playlist ──
 
-  const handleConfirmSaveAsPlaylist = useCallback(() => {
-    if (!playlistName.trim()) {
-      setSavePlaylistError("Please enter a name");
-      return;
-    }
+  const doSavePlaylist = useCallback(
+    (videos: ReturnType<typeof songToYouTubeVideo>[], name: string) => {
+      const result = savePlaylistToStore(
+        name,
+        "",
+        {
+          query: "",
+          videoTypes: ["music"],
+          includeKeywords: [],
+          excludeKeywords: [],
+          uploadDate: { type: "any" },
+          maxResults: 50,
+          safeSearch: true,
+        },
+        videos,
+      );
 
+      if ("error" in result) {
+        addToast({ message: result.error as string, type: "error", duration: 4000 });
+        return false;
+      }
+
+      setIsSelecting(false);
+      setSelectedIds([]);
+
+      addToast({
+        message: `✅ Saved "${name}" (${videos.length} songs)`,
+        type: "success",
+        duration: 4000,
+        action: {
+          label: "View",
+          onClick: () => navigate("/my-playlists"),
+        },
+      });
+      return true;
+    },
+    [savePlaylistToStore, addToast, navigate],
+  );
+
+  // Direct save — skip reorder dialog
+  const handleQuickSavePlaylist = useCallback(() => {
     const videos = selectedSongs.map(songToYouTubeVideo);
-    if (videos.length === 0) {
-      setSavePlaylistError("No songs selected");
+    if (videos.length === 0) return;
+    const name = `Playlist (${videos.length} songs)`;
+    doSavePlaylist(videos, name);
+  }, [selectedSongs, doSavePlaylist]);
+
+  // Save with reorder dialog
+  const handleSaveAsPlaylist = useCallback(() => {
+    setShowSaveOrderDialog(true);
+  }, []);
+
+  const handleSaveOrderConfirm = useCallback(
+    (ordered: { id: string; videoId: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[], playlistName: string) => {
+      setShowSaveOrderDialog(false);
+
+      const videoMap = new Map(selectedSongs.map((s) => [s.videoId, s]));
+      const orderedVideos = ordered
+        .map((o) => videoMap.get(o.videoId))
+        .filter((s): s is SavedSong => s !== undefined)
+        .map(songToYouTubeVideo);
+
+      if (orderedVideos.length === 0) {
+        addToast({ message: "No songs to save", type: "error", duration: 3000 });
+        return;
+      }
+
+      const name = playlistName.trim() || `Playlist (${orderedVideos.length} songs)`;
+      doSavePlaylist(orderedVideos, name);
+    },
+    [selectedSongs, addToast, doSavePlaylist],
+  );
+
+  // ── Merge ──
+
+  const doMerge = useCallback(
+    (songsToMerge: SavedSong[], mergeName?: string) => {
+      startMerge(
+        songsToMerge.map((s) => ({ id: s.videoId, title: s.title, thumbnailUrl: s.thumbnailUrl })),
+        navigate,
+        mergeName,
+      );
+      setIsSelecting(false);
+      setSelectedIds([]);
+    },
+    [navigate],
+  );
+
+  // Direct merge — skip reorder dialog
+  const handleQuickMerge = useCallback(() => {
+    if (selectedSongs.length < 2) {
+      addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
       return;
     }
+    doMerge(selectedSongs);
+  }, [selectedSongs, addToast, doMerge]);
 
-    setSavingPlaylist(true);
-    setSavePlaylistError(null);
-
-    const result = savePlaylistToStore(
-      playlistName.trim(),
-      "",
-      {
-        query: "",
-        videoTypes: ["music"],
-        includeKeywords: [],
-        excludeKeywords: [],
-        uploadDate: { type: "any" },
-        maxResults: 50,
-        safeSearch: true,
-      },
-      videos,
-    );
-
-    if ("error" in result) {
-      setSavePlaylistError(result.error as string);
-      setSavingPlaylist(false);
+  // Merge with reorder dialog
+  const handleMergeSelected = useCallback(() => {
+    if (selectedSongs.length < 2) {
+      addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
       return;
     }
-
-    setShowSaveDialog(false);
-    setSavingPlaylist(false);
-    setIsSelecting(false);
-    setSelectedIds([]);
-
-    addToast({
-      message: `✅ Saved "${playlistName.trim()}" (${videos.length} songs)`,
-      type: "success",
-      duration: 4000,
-      action: {
-        label: "View",
-        onClick: () => navigate("/my-playlists"),
-      },
-    });
-  }, [playlistName, selectedSongs, savePlaylistToStore, addToast, navigate]);
+    setShowMergeDialog(true);
+  }, [selectedSongs, addToast]);
 
   const handleMergeDialogConfirm = useCallback(
     (ordered: { id: string; videoId: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[], mergeName: string) => {
       setShowMergeDialog(false);
 
-      startMerge(
-        ordered.map((s) => ({ id: s.videoId, title: s.title, thumbnailUrl: s.thumbnailUrl })),
-        navigate,
-        mergeName,
-      );
+      const videoMap = new Map(selectedSongs.map((s) => [s.videoId, s]));
+      const orderedSongs = ordered
+        .map((o) => videoMap.get(o.videoId))
+        .filter((s): s is SavedSong => s !== undefined);
 
-      setIsSelecting(false);
-      setSelectedIds([]);
+      if (orderedSongs.length < 2) {
+        addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
+        return;
+      }
+
+      doMerge(orderedSongs, mergeName);
     },
-    [navigate],
+    [selectedSongs, addToast, doMerge],
   );
 
   const handleMergeDialogRemove = useCallback(
@@ -400,40 +411,16 @@ export function MySongsPage() {
     [removeSong],
   );
 
-  const handleMergeSelected = useCallback(() => {
-    if (selectedSongs.length < 2) {
-      addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
-      return;
-    }
-
-    setShowMergeDialog(true);
-  }, [selectedSongs, addToast]);
-
-  const handlePlayAll = () => {
-    if (filteredSongs.length === 0) return;
-    initQueue(filteredSongs.map(songToYouTubeVideo));
-    navigate("/playlist");
-    addToast({
-      message: `Playing ${filteredSongs.length} song${filteredSongs.length !== 1 ? "s" : ""}`,
-      type: "success",
-      duration: 2500,
-    });
-  };
-
   const handlePlaySong = (song: SavedSong) => {
-    initQueue([songToYouTubeVideo(song)]);
-    navigate("/playlist");
-  };
-
-  const handlePlaySingerSongs = (singerName: string) => {
-    const singerSongs = songs.filter((s) => s.singerName === singerName);
-    if (singerSongs.length === 0) return;
-    initQueue(singerSongs.map(songToYouTubeVideo));
-    navigate("/playlist");
-    addToast({
-      message: `Playing ${singerSongs.length} ${singerName} song${singerSongs.length !== 1 ? "s" : ""}`,
-      type: "success",
-      duration: 2500,
+    setPlayerDialog({
+      videos: [{
+        id: song.videoId,
+        title: song.title,
+        thumbnailUrl: song.thumbnailUrl,
+        durationSeconds: song.durationSeconds,
+      }],
+      initialIndex: 0,
+      title: song.title,
     });
   };
 
@@ -476,12 +463,45 @@ export function MySongsPage() {
                   </button>
                   {selectedIds.length > 0 && (
                     <>
-                      <Button size="sm" variant="secondary" onClick={handleSaveAsPlaylist}>
-                        Save as Playlist
-                      </Button>
-                      <Button size="sm" onClick={handleMergeSelected}>
-                        Merge ({selectedIds.length})
-                      </Button>
+                      {/* Save as Playlist — split button */}
+                      <div className="flex">
+                        <button
+                          onClick={handleQuickSavePlaylist}
+                          className="rounded-l-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors hover:bg-neutral-700"
+                        >
+                          Save as Playlist
+                        </button>
+                        <button
+                          onClick={handleSaveAsPlaylist}
+                          className="-ml-px rounded-r-lg bg-neutral-800 px-1.5 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-700 hover:text-white"
+                          title="Reorder songs before saving"
+                          aria-label="Reorder songs"
+                        >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* Merge — split button */}
+                      <div className="flex">
+                        <button
+                          onClick={handleQuickMerge}
+                          className="rounded-l-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
+                        >
+                          Merge ({selectedIds.length})
+                        </button>
+                        <button
+                          onClick={handleMergeSelected}
+                          className="-ml-px rounded-r-lg bg-blue-600 px-1.5 py-1.5 text-blue-300 transition-colors hover:bg-blue-500 hover:text-white"
+                          title="Reorder songs before merging"
+                          aria-label="Reorder songs"
+                        >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+                      </div>
                     </>
                   )}
                   <button
@@ -507,12 +527,6 @@ export function MySongsPage() {
                       </svg>
                       Select
                     </span>
-                  </button>
-                  <button
-                    onClick={handlePlayAll}
-                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
-                  >
-                    Play All
                   </button>
                   <button
                     onClick={() => {
@@ -598,12 +612,6 @@ export function MySongsPage() {
                     <h2 className="text-sm font-semibold text-white">{singerName}</h2>
                     <span className="text-xs text-neutral-500">{singerSongs.length}</span>
                   </div>
-                  <button
-                    onClick={() => handlePlaySingerSongs(singerName)}
-                    className="rounded-lg bg-blue-600/10 px-2.5 py-1 text-[11px] font-medium text-blue-400 transition-colors hover:bg-blue-600/20"
-                  >
-                    Play all
-                  </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {singerSongs.map((song) => (
@@ -616,29 +624,9 @@ export function MySongsPage() {
                       onPlay={() => {
                         if (!isSelecting) handlePlaySong(song);
                       }}
-                      onAddNext={() => {
-                        const video = songToYouTubeVideo(song);
-                        usePlayerStore.getState().addNext(video);
-                        addToast({ message: `"${song.title}" will play next`, type: "info", duration: 2000 });
-                      }}
-                      onAddToQueue={() => {
-                        const video = songToYouTubeVideo(song);
-                        usePlayerStore.getState().addToQueue(video);
-                        addToast({ message: `"${song.title}" added to queue`, type: "info", duration: 2000 });
-                      }}
-                      onAddToPlaylist={() => {
-                        const video = songToYouTubeVideo(song);
-                        const result = useSavedSongsStore.getState().addSongs([video]);
-                        if ("error" in result) {
-                          addToast({ message: result.error, type: "error", duration: 3000 });
-                        } else {
-                          addToast({ message: `"${song.title}" added to My Songs`, type: "success", duration: 2000 });
-                        }
-                      }}
                       onRemove={() => {
                         if (isSelecting) return;
                         removeSong(song.id);
-                        addToast({ message: `Removed "${song.title}"`, type: "info", duration: 2500 });
                       }}
                     />
                   ))}
@@ -671,29 +659,9 @@ export function MySongsPage() {
                       onPlay={() => {
                         if (!isSelecting) handlePlaySong(song);
                       }}
-                      onAddNext={() => {
-                        const video = songToYouTubeVideo(song);
-                        usePlayerStore.getState().addNext(video);
-                        addToast({ message: `"${song.title}" will play next`, type: "info", duration: 2000 });
-                      }}
-                      onAddToQueue={() => {
-                        const video = songToYouTubeVideo(song);
-                        usePlayerStore.getState().addToQueue(video);
-                        addToast({ message: `"${song.title}" added to queue`, type: "info", duration: 2000 });
-                      }}
-                      onAddToPlaylist={() => {
-                        const video = songToYouTubeVideo(song);
-                        const result = useSavedSongsStore.getState().addSongs([video]);
-                        if ("error" in result) {
-                          addToast({ message: result.error, type: "error", duration: 3000 });
-                        } else {
-                          addToast({ message: `"${song.title}" added to My Songs`, type: "success", duration: 2000 });
-                        }
-                      }}
                       onRemove={() => {
                         if (isSelecting) return;
                         removeSong(song.id);
-                        addToast({ message: `Removed "${song.title}"`, type: "info", duration: 2500 });
                       }}
                     />
                   ))}
@@ -703,6 +671,24 @@ export function MySongsPage() {
           </div>
         )}
       </main>
+
+      {/* Save as Playlist order dialog */}
+      {showSaveOrderDialog && (
+        <MergeOrderDialog
+          mode="playlist"
+          songs={selectedSongs.map((s) => ({
+            id: s.id,
+            videoId: s.videoId,
+            title: s.title,
+            thumbnailUrl: s.thumbnailUrl,
+            duration: s.duration,
+            durationSeconds: s.durationSeconds,
+          }))}
+          onConfirm={handleSaveOrderConfirm}
+          onRemove={handleMergeDialogRemove}
+          onClose={() => setShowSaveOrderDialog(false)}
+        />
+      )}
 
       {/* Merge order dialog */}
       {showMergeDialog && (
@@ -721,48 +707,16 @@ export function MySongsPage() {
         />
       )}
 
-      {/* Save as Playlist dialog */}
-      {showSaveDialog && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onKeyDown={(e) => e.key === "Escape" && setShowSaveDialog(false)}
-        >
-          <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl animate-in">
-            <h2 className="mb-1 text-lg font-semibold text-white">Save as Playlist</h2>
-            <p className="mb-5 text-sm text-neutral-400">
-              {selectedSongs.length} song{selectedSongs.length !== 1 ? "s" : ""} will be saved to your playlists.
-            </p>
-            <Input
-              value={playlistName}
-              onChange={(e) => {
-                setPlaylistName(e.target.value);
-                setSavePlaylistError(null);
-              }}
-              placeholder="My Playlist"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleConfirmSaveAsPlaylist();
-                if (e.key === "Escape") setShowSaveDialog(false);
-              }}
-              autoFocus
-            />
-            {savePlaylistError && <p className="mt-2 text-xs text-red-400">{savePlaylistError}</p>}
-            <div className="mt-5 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowSaveDialog(false)}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-400 transition-colors hover:text-white"
-              >
-                Cancel
-              </button>
-              <Button onClick={handleConfirmSaveAsPlaylist} disabled={savingPlaylist}>
-                {savingPlaylist ? (
-                  <span className="flex items-center gap-2"><Spinner size="sm" /> Saving...</span>
-                ) : "Save"}
-              </Button>
-            </div>
-          </div>
-        </div>      )}
+      {/* Playlist player dialog */}
+      {playerDialog && (
+        <PlaylistPlayerDialog
+          videos={playerDialog.videos}
+          initialIndex={playerDialog.initialIndex}
+          title={playerDialog.title}
+          onClose={() => setPlayerDialog(null)}
+        />
+      )}
 
     </SidebarLayout>
   );
 }
-

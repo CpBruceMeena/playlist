@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import type { Singer, FilterCriteria } from "@playlist/types";
 import { fetchSingers, generateMultiSingerPlaylist } from "../api/singers";
-import { usePlayerStore } from "./playerStore";
 import { usePlaylistStore } from "./playlistStore";
 
 interface SingerState {
@@ -147,18 +146,13 @@ export const useSingerStore = create<SingerState>((set, get) => ({
       }
 
       // Singer names are now annotated by the backend directly on each video.
-      // The backend sets singerName + singerId during dedup, so this is reliable.
-      // Only fill in missing singerName for any videos that lack it.
       const annotatedVideos = response.videos.map((v) => ({
         ...v,
         singerName: v.singerName || response.singerNames[v.singerId || ""] || "",
         singerId: v.singerId || "",
       }));
 
-      // Initialize the player store with the annotated videos
-      usePlayerStore.getState().initQueue(annotatedVideos);
-
-      // Also populate playlistStore so PlaylistPage renders the player correctly
+      // Populate playlistStore so PlaylistPage renders the playlist
       usePlaylistStore.getState().setVideos(annotatedVideos);
 
       set({
@@ -173,7 +167,7 @@ export const useSingerStore = create<SingerState>((set, get) => ({
   },
 }));
 
-// Helper — check if any videos in the current queue have singer attribution
-export function hasSingerAttribution(queue: { singerName?: string }[]): boolean {
-  return queue.some((v) => v.singerName);
+// Helper — check if any videos have singer attribution
+export function hasSingerAttribution(videos: { singerName?: string }[]): boolean {
+  return videos.some((v) => v.singerName);
 }

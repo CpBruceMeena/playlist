@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import type { YouTubeVideo, FilterCriteria } from "@playlist/types";
 import { generatePlaylist } from "../api/generate";
-import { usePlayerStore } from "./playerStore";
 
 interface PlaylistState {
   // Current generation
@@ -62,9 +61,6 @@ export const usePlaylistStore = create<PlaylistState>((set) => ({
         return;
       }
 
-      // Initialize the player store with the deduped videos
-      usePlayerStore.getState().initQueue(dedupedVideos);
-
       set({
         videos: dedupedVideos,
         isGenerating: false,
@@ -83,7 +79,6 @@ export const usePlaylistStore = create<PlaylistState>((set) => ({
   clearError: () => set({ error: null }),
 
   clearPlaylist: () => {
-    usePlayerStore.getState().clearQueue();
     set({ videos: [], sessionId: null, error: null });
   },
 }));

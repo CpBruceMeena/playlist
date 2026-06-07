@@ -139,6 +139,42 @@ func (h *MergeHandler) ListMergedVideos(c *gin.Context) {
 	c.Data(resp.StatusCode, "application/json", respBody)
 }
 
+// DeleteMergedVideo proxies the delete request to the Python merge server
+func (h *MergeHandler) DeleteMergedVideo(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		apiError(c, http.StatusBadRequest, "Missing id", "INVALID_REQUEST")
+		return
+	}
+
+	proxyURL := mergeServerBase + "/api/merged/" + id
+	proxyReq, err := http.NewRequestWithContext(c.Request.Context(), "DELETE", proxyURL, nil)
+	if err != nil {
+		log.Printf("Failed to create delete proxy request: %v", err)
+		apiServerError(c, fmt.Errorf("internal error"))
+		return
+	}
+
+	resp, err := h.client.Do(proxyReq)
+	if err != nil {
+		log.Printf("Merge server delete request failed: %v", err)
+		apiError(c, http.StatusServiceUnavailable,
+			"Merge server is unavailable",
+			"MERGE_SERVER_UNAVAILABLE")
+		return
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Failed to read merge server delete response: %v", err)
+		apiServerError(c, fmt.Errorf("internal error"))
+		return
+	}
+
+	c.Data(resp.StatusCode, "application/json", respBody)
+}
+
 // ServeMergedFile serves merged video files for playback (not as download)
 func (h *MergeHandler) ServeMergedFile(c *gin.Context) {
 	filename := c.Param("filename")

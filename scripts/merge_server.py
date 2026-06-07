@@ -285,6 +285,32 @@ def list_merged():
     return jsonify({"data": merged_list})
 
 
+@app.route("/api/merged/<id>", methods=["DELETE"])
+def delete_merged(id):
+    """Delete a merged video by its ID (UUID)."""
+    meta_path = METADATA_DIR / f"{id}.json"
+
+    if not meta_path.exists():
+        return jsonify({"error": {"message": "Merged video not found", "code": "NOT_FOUND"}}), 404
+
+    try:
+        with open(meta_path) as f:
+            metadata = json.load(f)
+
+        filename = metadata.get("filename", "")
+        video_path = MERGED_DIR / filename
+
+        if video_path.exists():
+            video_path.unlink()
+
+        meta_path.unlink()
+        logger.info(f"Deleted merged video: {filename} (id={id})")
+        return jsonify({"data": {"deleted": True}})
+    except (json.JSONDecodeError, OSError) as e:
+        logger.error(f"Error deleting merged video {id}: {e}")
+        return jsonify({"error": {"message": "Failed to delete", "code": "DELETE_FAILED"}}), 500
+
+
 @app.route("/api/merged/<filename>")
 def serve_merged(filename):
     """Serve merged video files for playback (not as attachment)."""
