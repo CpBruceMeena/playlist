@@ -336,11 +336,7 @@ export function PlaylistPage() {
     [savePlaylist, addToast, navigate],
   );
 
-  const handleQuickSavePlaylist = useCallback(() => {
-    if (selectedVideos.length === 0) return;
-    const name = `Playlist (${selectedVideos.length} songs)`;
-    doSavePlaylist(name, selectedVideos);
-  }, [selectedVideos, doSavePlaylist]);
+
 
   const handleSaveAsPlaylist = useCallback(() => {
     setShowSaveOrderDialog(true);
@@ -363,30 +359,7 @@ export function PlaylistPage() {
       doSavePlaylist(name, orderedVideos);
     },
     [selectedVideos, addToast, doSavePlaylist],
-  );
-
-  // ── Merge selected ──
-
-  const doMerge = useCallback(
-    (mergeName?: string) => {
-      startMerge(
-        selectedVideos.map((v) => ({ id: v.id, title: v.title, thumbnailUrl: v.thumbnailUrl })),
-        navigate,
-        mergeName,
-      );
-      setIsSelecting(false);
-      setSelectedIds([]);
-    },
-    [selectedVideos, navigate],
-  );
-
-  const handleQuickMerge = useCallback(() => {
-    if (selectedVideos.length < 2) {
-      addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
-      return;
-    }
-    doMerge();
-  }, [selectedVideos, addToast, doMerge]);
+  );  // ── Merge selected ──
 
   const handleMergeSelected = useCallback(() => {
     if (selectedVideos.length < 2) {
@@ -523,45 +496,21 @@ export function PlaylistPage() {
                       Add to My Songs
                     </button>
 
-                    {/* Save as Playlist — split button */}
-                    <div className="flex">
-                      <button
-                        onClick={handleQuickSavePlaylist}
-                        className="rounded-l-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors hover:bg-neutral-700"
-                      >
-                        Save as Playlist
-                      </button>
-                      <button
-                        onClick={handleSaveAsPlaylist}
-                        className="-ml-px rounded-r-lg bg-neutral-800 px-1.5 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-700 hover:text-white"
-                        title="Reorder songs before saving"
-                        aria-label="Reorder songs"
-                      >
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="6 9 12 15 18 9" />
-                        </svg>
-                      </button>
-                    </div>
+                    {/* Save as Playlist — opens dialog with name input + optional reorder */}
+                    <button
+                      onClick={handleSaveAsPlaylist}
+                      className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors hover:bg-neutral-700"
+                    >
+                      Save as Playlist
+                    </button>
 
-                    {/* Merge — split button */}
-                    <div className="flex">
-                      <button
-                        onClick={handleQuickMerge}
-                        className="rounded-l-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
-                      >
-                        Merge ({selectedIds.length})
-                      </button>
-                      <button
-                        onClick={handleMergeSelected}
-                        className="-ml-px rounded-r-lg bg-blue-600 px-1.5 py-1.5 text-blue-300 transition-colors hover:bg-blue-500 hover:text-white"
-                        title="Reorder songs before merging"
-                        aria-label="Reorder songs"
-                      >
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="6 9 12 15 18 9" />
-                        </svg>
-                      </button>
-                    </div>
+                    {/* Merge — opens dialog with name input + optional reorder */}
+                    <button
+                      onClick={handleMergeSelected}
+                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
+                    >
+                      Merge ({selectedIds.length})
+                    </button>
                   </>
                 )}
                 <button
