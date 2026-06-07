@@ -2,12 +2,12 @@ import { useEffect, useState, useMemo, memo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarLayout } from "../components/layout/Sidebar";
 import { EmptyState } from "../components/feedback/EmptyState";
+import { Button } from "../components/ui/Button";
 import { Spinner } from "../components/ui/Spinner";
 import { PlaylistPlayerDialog } from "../components/player/PlaylistPlayerDialog";
 import { MergeOrderDialog } from "../components/processing/MergeOrderDialog";
 import { useSavedSongsStore } from "../stores/savedSongsStore";
 import { useSavedPlaylistsStore } from "../stores/savedPlaylistsStore";
-import { useToastStore } from "../stores/toastStore";
 import { startMerge } from "../api/mergeRunner";
 import type { SavedSong } from "@playlist/types";
 
@@ -207,7 +207,6 @@ const SongTile = memo(function SongTile({
 
 export function MySongsPage() {
   const navigate = useNavigate();
-  const addToast = useToastStore((s) => s.addToast);
   const { songs, isLoaded, loadFromStorage, removeSong, clearAll } =
     useSavedSongsStore();
 
@@ -297,25 +296,14 @@ export function MySongsPage() {
       );
 
       if ("error" in result) {
-        addToast({ message: result.error as string, type: "error", duration: 4000 });
         return false;
       }
 
       setIsSelecting(false);
       setSelectedIds([]);
-
-      addToast({
-        message: `✅ Saved "${name}" (${videos.length} songs)`,
-        type: "success",
-        duration: 4000,
-        action: {
-          label: "View",
-          onClick: () => navigate("/my-playlists"),
-        },
-      });
       return true;
     },
-    [savePlaylistToStore, addToast, navigate],
+    [savePlaylistToStore, navigate],
   );
 
 
@@ -336,14 +324,13 @@ export function MySongsPage() {
         .map(songToYouTubeVideo);
 
       if (orderedVideos.length === 0) {
-        addToast({ message: "No songs to save", type: "error", duration: 3000 });
         return;
       }
 
       const name = playlistName.trim() || `Playlist (${orderedVideos.length} songs)`;
       doSavePlaylist(orderedVideos, name);
     },
-    [selectedSongs, addToast, doSavePlaylist],
+    [selectedSongs, doSavePlaylist],
   );
 
   // ── Merge ──
@@ -366,11 +353,10 @@ export function MySongsPage() {
   // Merge with reorder dialog
   const handleMergeSelected = useCallback(() => {
     if (selectedSongs.length < 2) {
-      addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
       return;
     }
     setShowMergeDialog(true);
-  }, [selectedSongs, addToast]);
+  }, [selectedSongs]);
 
   const handleMergeDialogConfirm = useCallback(
     (ordered: { id: string; videoId: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[], mergeName: string) => {
@@ -382,13 +368,12 @@ export function MySongsPage() {
         .filter((s): s is SavedSong => s !== undefined);
 
       if (orderedSongs.length < 2) {
-        addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
         return;
       }
 
       doMerge(orderedSongs, mergeName);
     },
-    [selectedSongs, addToast, doMerge],
+    [selectedSongs, doMerge],
   );
 
   const handleMergeDialogRemove = useCallback(
@@ -450,56 +435,43 @@ export function MySongsPage() {
                   </button>
                   {selectedIds.length > 0 && (
                     <>
-                      {/* Save as Playlist — opens dialog with name input + optional reorder */}
-                      <button
-                        onClick={handleSaveAsPlaylist}
-                        className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors hover:bg-neutral-700"
-                      >
+                      <Button variant="secondary" size="sm" onClick={handleSaveAsPlaylist}>
                         Save as Playlist
-                      </button>
-
-                      {/* Merge — opens dialog with name input + optional reorder */}
-                      <button
-                        onClick={handleMergeSelected}
-                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
-                      >
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={handleMergeSelected}>
                         Merge ({selectedIds.length})
-                      </button>
+                      </Button>
                     </>
                   )}
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       setIsSelecting(false);
                       setSelectedIds([]);
                     }}
-                    className="rounded-lg bg-neutral-800 px-2.5 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:text-white"
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setIsSelecting(true)}
-                    className="rounded-lg bg-neutral-800 px-2.5 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:text-white"
-                  >
-                    <span className="flex items-center gap-1">
+                    icon={
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="9 11 12 14 22 4" />
                         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                       </svg>
-                      Select
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      clearAll();
-                      addToast({ message: "All songs cleared", type: "info", duration: 2500 });
-                    }}
-                    className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:bg-red-900/50 hover:text-red-400"
+                    }
                   >
+                    Select
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => clearAll()}>
                     Clear All
-                  </button>
+                  </Button>
                 </>
               )}
             </div>

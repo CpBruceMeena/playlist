@@ -2,7 +2,6 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import { ErrorBoundary } from "./components/feedback/ErrorBoundary";
-import { ToastContainer } from "./components/feedback/ToastContainer";
 import { Spinner } from "./components/ui/Spinner";
 
 const HomePage = lazy(() => import("./pages/HomePage").then((m) => ({ default: m.HomePage })));
@@ -38,7 +37,6 @@ export default function App() {
             </Routes>
           </Suspense>
         </div>
-        <ToastContainer />
       </BrowserRouter>
     </ErrorBoundary>
   );

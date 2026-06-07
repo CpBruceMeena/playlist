@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { Button } from "../components/ui/Button";
 import { SidebarLayout } from "../components/layout/Sidebar";
 import { SearchInput } from "../components/search/SearchInput";
 import { FilterPanel } from "../components/search/FilterPanel";
@@ -125,36 +126,35 @@ export function HomePage() {
 
           {/* Action row */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <button
+            <Button
+              variant={hasSingers ? "primary" : "secondary"}
+              size="sm"
               onClick={() => setShowSingerDrawer(true)}
-              className={
-                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-150 " +
-                (hasSingers
-                  ? "border-blue-500/40 bg-blue-600/15 text-blue-300 hover:bg-blue-600/25"
-                  : "border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200")
+              icon={
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M9 18V5l12-2v13" />
+                  <circle cx="6" cy="18" r="3" />
+                  <circle cx="18" cy="16" r="3" />
+                </svg>
               }
+              className="!rounded-full !border !px-2.5"
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M9 18V5l12-2v13" />
-                <circle cx="6" cy="18" r="3" />
-                <circle cx="18" cy="16" r="3" />
-              </svg>
               Singers
               {hasSingers && (
-                <span className="-mr-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500/40 text-[10px] font-bold text-blue-200">
+                <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500/40 text-[10px] font-bold text-blue-200">
                   {selectedSingerIds.length}
                 </span>
               )}
-            </button>
+            </Button>
 
             {selectedSingerObjects.map((singer) => (
               <span
@@ -177,14 +177,15 @@ export function HomePage() {
             ))}
 
             {hasSingers && (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   useSingerStore.getState().clearSelection();
                 }}
-                className="text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-300"
               >
                 Clear all
-              </button>
+              </Button>
             )}
 
             <ActiveFilterBar />

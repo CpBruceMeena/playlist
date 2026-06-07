@@ -1,37 +1,31 @@
 # Smart Playlist Creator 🎵
 
-> AI-powered YouTube playlist generator with smart filters and an embedded player.
+> AI-powered YouTube playlist generator with smart filters, multi-singer support, and an embedded player.
 
-Generate custom YouTube playlists by typing a description — like *"lofi beats to study to"* or *"90s rock classics"* — and our smart search engine builds a curated playlist with intelligent filtering. Watch everything seamlessly in-browser without leaving the website.
+Generate custom YouTube playlists by describing what you want in natural language — like *"lofi beats to study to"* or *"90s rock classics"* — and get a curated playlist with intelligent filtering. Select multiple singers for a combined playlist, save your favorites, merge songs into a single video, and watch everything seamlessly in-browser.
 
 ## ✨ Features
 
 - **🧠 AI-Powered Generation** — Describe what you want in natural language, get a curated playlist in seconds
-- **🎛️ Smart Filters** — Refine results by duration, video type, upload date, keywords, view count, and more
-- **🎤 Multi-Singer Playlists** — Select multiple singers for a combined playlist with balanced results from each
-- **▶️ Embedded Player** — Watch videos directly in-browser with play/pause, next/previous, shuffle, repeat, and seek
-- **💾 Save & Organize** — Save playlists locally with inline rename and undo delete for accidental removals
+- **🎛️ Smart Filters** — Refine results by duration, video type, upload date, keywords, view count, safe search, and max results
+- **🎤 Multi-Singer Playlists** — Select 2–5 singers from a database of 500+ across 16 genres, or add custom singer names
+- **❤️ My Songs** — Save individual songs from any playlist, grouped by singer with search/filter
+- **💾 Save & Organize** — Save entire playlists or selected songs with custom names; inline rename, load, and manage
+- **🔀 Merge Videos** — Select songs and merge them into a single video via yt-dlp + ffmpeg, with optional reordering
+- **▶️ Embedded Player** — Watch videos in-browser with play/pause, next/previous, shuffle, repeat all, seek, and queue management
 - **🔗 Share Playlists** — Generate shareable links to send your playlists to anyone
-- **⌨️ Keyboard Shortcuts** — Space (play/pause), N/P (next/previous), M (mute), ←/→ (seek)
-- **🎨 Beautiful Dark UI** — Modern gradient-accented design with smooth animations and glassmorphism effects
-
-## 🖼️ Screenshots
-
-```
-Home Page:   Search input with suggestion chips, collapsible filter panel, and singer selector
-Playlist Page: YouTube player with custom controls, progress bar, queue management, and save dialog
-My Playlists: Saved playlist cards with inline rename, load, and undo delete
-```
+- **⌨️ Keyboard Shortcuts** — Arrow keys, Escape, and more for easy navigation
+- **🎨 Dark Gradient UI** — Modern design with blue-to-purple gradients, smooth animations, and glassmorphism effects
 
 ## 🏗️ Architecture
 
 | Service | Language | Port | Purpose |
 |---------|----------|------|---------|
 | **Frontend** | React / Vite / TypeScript | `5173` | User interface — playlist browser, player, and management |
-| **Backend** | Go / Gin | `3001` | Primary API — YouTube search, playlist CRUD, proxies merge requests |
+| **Backend** | Go / Gin | `3001` | Primary API — YouTube search, playlist CRUD, singer database, proxies merge requests |
 | **Merge Server** | Python / Flask | `5002` | Video merge service — downloads YouTube videos with yt-dlp, concatenates with ffmpeg |
 
-The **Go backend** is the single entry point for all frontend API calls. The **Merge Server** runs as a separate process and is only called by the Go backend via proxy — the frontend never talks to it directly.
+The **Go backend** is the single entry point for all frontend API calls. The **Merge Server** runs as a separate process, called only by the Go backend via proxy.
 
 ## 🚀 Quick Start
 
@@ -40,8 +34,8 @@ The **Go backend** is the single entry point for all frontend API calls. The **M
 - **Node.js** 20+ with npm
 - **Python** 3.10+
 - **PostgreSQL** (running on port 5432)
-- **ffmpeg** — Required for the merge server to concatenate videos
-- **yt-dlp** — Required for the merge server to download YouTube videos
+- **ffmpeg** — Required for the merge server
+- **yt-dlp** — Required for the merge server
 
 ### Setup
 
@@ -86,12 +80,8 @@ cd frontend && npx vite
 
 | Key | Action |
 |-----|--------|
-| `Space` | Play / Pause |
-| `N` | Next video |
-| `P` | Previous video |
-| `M` | Mute / Unmute |
-| `←` | Seek backward |
-| `→` | Seek forward |
+| `←` / `→` | Previous / Next video |
+| `↑` / `↓` | Previous / Next video |
 | `Escape` | Close dialogs |
 
 ## 📄 License

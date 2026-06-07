@@ -1,6 +1,5 @@
 import { mergeVideos } from "./merge";
 import { useMergedVideosStore } from "../stores/mergedVideosStore";
-import { useToastStore } from "../stores/toastStore";
 
 interface MergeSong {
   id: string;
@@ -16,10 +15,9 @@ interface MergeSong {
  */
 export async function startMerge(
   songs: MergeSong[],
-  navigate?: (path: string) => void,
+  _navigate?: (path: string) => void,
   mergeName?: string,
 ) {
-  const addToast = useToastStore.getState().addToast;
   const { addMergeJob, updateMergeJob, removeMergeJob, addMergedVideo } =
     useMergedVideosStore.getState();
 
@@ -30,12 +28,6 @@ export async function startMerge(
     id: jobId,
     status: "processing",
     songs,
-  });
-
-  addToast({
-    message: `⏳ Merging ${songs.length} song${songs.length !== 1 ? "s" : ""}...`,
-    type: "info",
-    duration: 4000,
   });
 
   try {
@@ -51,16 +43,6 @@ export async function startMerge(
     // Store merged video, remove processing job
     addMergedVideo(result);
     removeMergeJob(jobId);
-
-    addToast({
-      message: `✅ "${result.title}" is ready!`,
-      type: "success",
-      duration: 6000,
-      action: {
-        label: "View",
-        onClick: () => navigate?.("/merged-videos"),
-      },
-    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Merge failed";
     const isServerDown =
@@ -71,14 +53,6 @@ export async function startMerge(
       error: isServerDown
         ? "Merge server not running. Start it with: python3 scripts/merge_server.py"
         : `Merge failed: ${msg}`,
-    });
-
-    addToast({
-      message: isServerDown
-        ? "Merge server not running"
-        : `Merge failed: ${msg}`,
-      type: "error",
-      duration: 6000,
     });
   }
 }
