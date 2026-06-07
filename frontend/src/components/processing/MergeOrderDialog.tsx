@@ -405,7 +405,7 @@ export function MergeOrderDialog({
               <button
                 onClick={handleSkipReorder}
                 disabled={availableCount < minCount}
-                className="rounded-lg px-3 py-2 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="rounded-lg border border-neutral-700 bg-neutral-800/50 px-3 py-2 text-xs font-medium text-neutral-400 transition-colors hover:border-neutral-600 hover:bg-neutral-700/50 hover:text-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {labels.skipButtonText(availableCount)}
               </button>
