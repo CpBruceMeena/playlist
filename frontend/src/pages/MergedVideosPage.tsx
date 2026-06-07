@@ -37,19 +37,25 @@ const MergedVideoTile = memo(function MergedVideoTile({
   onPlay: () => void;
   onDelete: () => void;
 }) {
+  const thumbnailSrc = video.thumbnailUrl ||
+    (video.songs[0]?.id ? `https://i.ytimg.com/vi/${video.songs[0].id}/hqdefault.jpg` : null);
+  const [imgFailed, setImgFailed] = useState(false);
+  const showFallback = !thumbnailSrc || imgFailed;
+
   return (
     <div
       onClick={onPlay}
       className="group relative flex flex-col overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/50 transition-all duration-200 hover:border-blue-500/40 hover:bg-neutral-900 hover:shadow-lg hover:shadow-blue-500/5"
     >
-      {/* Thumbnail */}
+      {/* Thumbnail — first song's thumbnail as fallback */}
       <div className="relative aspect-video w-full overflow-hidden bg-neutral-800">
-        {video.thumbnailUrl ? (
+        {!showFallback ? (
           <img
-            src={video.thumbnailUrl}
+            src={thumbnailSrc}
             alt=""
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
+            onError={() => setImgFailed(true)}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-600/20 to-purple-600/20">
@@ -110,21 +116,6 @@ const MergedVideoTile = memo(function MergedVideoTile({
             {video.songCount} songs · {formatDate(video.createdAt)}
           </span>
         </div>
-        {video.songs.length > 0 && (
-          <div className="flex flex-wrap gap-0.5">
-            {video.songs.slice(0, 2).map((song) => (
-              <span
-                key={song.id}
-                className="truncate rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400 max-w-[80px]"
-              >
-                {song.title.length > 12 ? song.title.slice(0, 12) + "…" : song.title}
-              </span>
-            ))}
-            {video.songs.length > 2 && (
-              <span className="text-[10px] text-neutral-600">+{video.songs.length - 2}</span>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

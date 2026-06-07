@@ -27,6 +27,7 @@ const MODE_LABELS: Record<string, {
   subtitle: string;
   instruction: string;
   buttonText: (count: number) => string;
+  skipButtonText: (count: number) => string;
   inputPlaceholder: string;
   allReadyText: (count: number) => string;
 }> = {
@@ -35,6 +36,7 @@ const MODE_LABELS: Record<string, {
     subtitle: "Tap songs in the order you want them merged. Tap again to remove.",
     instruction: "The first song you tap will be the first song in the merged video. Tap songs one by one to build the order.",
     buttonText: (count) => `Merge ${count} song${count !== 1 ? "s" : ""}`,
+    skipButtonText: (count) => `Skip reorder — Merge all ${count}`,
     inputPlaceholder: "Name your merged video (optional)",
     allReadyText: (count) => `All ${count} songs are in order. Ready to merge!`,
   },
@@ -43,6 +45,7 @@ const MODE_LABELS: Record<string, {
     subtitle: "Tap songs in the order you want them saved. Tap again to remove.",
     instruction: "The first song you tap will be the first song in the playlist. Tap songs one by one to build the order.",
     buttonText: (count) => `Save ${count} song${count !== 1 ? "s" : ""} as Playlist`,
+    skipButtonText: (count) => `Skip reorder — Save all ${count}`,
     inputPlaceholder: "Name your playlist (optional)",
     allReadyText: (count) => `All ${count} songs are in order. Ready to save!`,
   },
@@ -96,8 +99,19 @@ export function MergeOrderDialog({
     onConfirm(ordered, name);
   }, [ordered, mergeName, onConfirm]);
 
+  const handleSkipReorder = useCallback(() => {
+    const available = initialSongs.filter(
+      (s) => !storageRemovedIdsRef.current.has(s.videoId),
+    );
+    const name = mergeName.trim() || `Merged (${available.length} songs)`;
+    onConfirm(available, name);
+  }, [initialSongs, mergeName, onConfirm]);
+
   const minCount = mode === "playlist" ? 1 : 2;
   const selectedCount = ordered.length;
+  const availableCount = initialSongs.filter(
+    (s) => !storageRemovedIdsRef.current.has(s.videoId),
+  ).length;
   const unselected = initialSongs.filter(
     (s) =>
       !orderedIds.has(s.videoId) &&
@@ -387,9 +401,18 @@ export function MergeOrderDialog({
             >
               Cancel
             </button>
-            <Button onClick={handleConfirm} disabled={selectedCount < minCount}>
-              {labels.buttonText(selectedCount)}
-            </Button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSkipReorder}
+                disabled={availableCount < minCount}
+                className="rounded-lg px-3 py-2 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {labels.skipButtonText(availableCount)}
+              </button>
+              <Button onClick={handleConfirm} disabled={selectedCount < minCount}>
+                {labels.buttonText(selectedCount)}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

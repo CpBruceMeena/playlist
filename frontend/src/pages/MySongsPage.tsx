@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { SidebarLayout } from "../components/layout/Sidebar";
 import { EmptyState } from "../components/feedback/EmptyState";
 import { Spinner } from "../components/ui/Spinner";
-import { Button } from "../components/ui/Button";
 import { PlaylistPlayerDialog } from "../components/player/PlaylistPlayerDialog";
 import { MergeOrderDialog } from "../components/processing/MergeOrderDialog";
 import { useSavedSongsStore } from "../stores/savedSongsStore";
@@ -278,27 +277,10 @@ export function MySongsPage() {
     setSelectedIds([]);
   }, []);
 
-  const handleSaveAsPlaylist = useCallback(() => {
-    setShowSaveOrderDialog(true);
-  }, []);
+  // ── Save as Playlist ──
 
-  const handleSaveOrderConfirm = useCallback(
-    (ordered: { id: string; videoId: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[], playlistName: string) => {
-      setShowSaveOrderDialog(false);
-
-      // Map ordered songs to YouTubeVideo format
-      const videoMap = new Map(selectedSongs.map((s) => [s.videoId, s]));
-      const orderedVideos = ordered
-        .map((o) => videoMap.get(o.videoId))
-        .filter((s): s is SavedSong => s !== undefined)
-        .map(songToYouTubeVideo);
-
-      if (orderedVideos.length === 0) {
-        addToast({ message: "No songs to save", type: "error", duration: 3000 });
-        return;
-      }
-
-      const name = playlistName.trim() || `Playlist (${orderedVideos.length} songs)`;
+  const doSavePlaylist = useCallback(
+    (videos: ReturnType<typeof songToYouTubeVideo>[], name: string) => {
       const result = savePlaylistToStore(
         name,
         "",
@@ -311,19 +293,19 @@ export function MySongsPage() {
           maxResults: 50,
           safeSearch: true,
         },
-        orderedVideos,
+        videos,
       );
 
       if ("error" in result) {
         addToast({ message: result.error as string, type: "error", duration: 4000 });
-        return;
+        return false;
       }
 
       setIsSelecting(false);
       setSelectedIds([]);
 
       addToast({
-        message: `✅ Saved "${name}" (${orderedVideos.length} songs)`,
+        message: `✅ Saved "${name}" (${videos.length} songs)`,
         type: "success",
         duration: 4000,
         action: {
@@ -331,24 +313,95 @@ export function MySongsPage() {
           onClick: () => navigate("/my-playlists"),
         },
       });
+      return true;
     },
-    [selectedSongs, savePlaylistToStore, addToast, navigate],
+    [savePlaylistToStore, addToast, navigate],
   );
+
+  // Direct save — skip reorder dialog
+  const handleQuickSavePlaylist = useCallback(() => {
+    const videos = selectedSongs.map(songToYouTubeVideo);
+    if (videos.length === 0) return;
+    const name = `Playlist (${videos.length} songs)`;
+    doSavePlaylist(videos, name);
+  }, [selectedSongs, doSavePlaylist]);
+
+  // Save with reorder dialog
+  const handleSaveAsPlaylist = useCallback(() => {
+    setShowSaveOrderDialog(true);
+  }, []);
+
+  const handleSaveOrderConfirm = useCallback(
+    (ordered: { id: string; videoId: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[], playlistName: string) => {
+      setShowSaveOrderDialog(false);
+
+      const videoMap = new Map(selectedSongs.map((s) => [s.videoId, s]));
+      const orderedVideos = ordered
+        .map((o) => videoMap.get(o.videoId))
+        .filter((s): s is SavedSong => s !== undefined)
+        .map(songToYouTubeVideo);
+
+      if (orderedVideos.length === 0) {
+        addToast({ message: "No songs to save", type: "error", duration: 3000 });
+        return;
+      }
+
+      const name = playlistName.trim() || `Playlist (${orderedVideos.length} songs)`;
+      doSavePlaylist(orderedVideos, name);
+    },
+    [selectedSongs, addToast, doSavePlaylist],
+  );
+
+  // ── Merge ──
+
+  const doMerge = useCallback(
+    (songsToMerge: SavedSong[], mergeName?: string) => {
+      startMerge(
+        songsToMerge.map((s) => ({ id: s.videoId, title: s.title, thumbnailUrl: s.thumbnailUrl })),
+        navigate,
+        mergeName,
+      );
+      setIsSelecting(false);
+      setSelectedIds([]);
+    },
+    [navigate],
+  );
+
+  // Direct merge — skip reorder dialog
+  const handleQuickMerge = useCallback(() => {
+    if (selectedSongs.length < 2) {
+      addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
+      return;
+    }
+    doMerge(selectedSongs);
+  }, [selectedSongs, addToast, doMerge]);
+
+  // Merge with reorder dialog
+  const handleMergeSelected = useCallback(() => {
+    if (selectedSongs.length < 2) {
+      addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
+      return;
+    }
+    setShowMergeDialog(true);
+  }, [selectedSongs, addToast]);
 
   const handleMergeDialogConfirm = useCallback(
     (ordered: { id: string; videoId: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[], mergeName: string) => {
       setShowMergeDialog(false);
 
-      startMerge(
-        ordered.map((s) => ({ id: s.videoId, title: s.title, thumbnailUrl: s.thumbnailUrl })),
-        navigate,
-        mergeName,
-      );
+      const videoMap = new Map(selectedSongs.map((s) => [s.videoId, s]));
+      const orderedSongs = ordered
+        .map((o) => videoMap.get(o.videoId))
+        .filter((s): s is SavedSong => s !== undefined);
 
-      setIsSelecting(false);
-      setSelectedIds([]);
+      if (orderedSongs.length < 2) {
+        addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
+        return;
+      }
+
+      doMerge(orderedSongs, mergeName);
     },
-    [navigate],
+    [selectedSongs, addToast, doMerge],
   );
 
   const handleMergeDialogRemove = useCallback(
@@ -357,15 +410,6 @@ export function MySongsPage() {
     },
     [removeSong],
   );
-
-  const handleMergeSelected = useCallback(() => {
-    if (selectedSongs.length < 2) {
-      addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
-      return;
-    }
-
-    setShowMergeDialog(true);
-  }, [selectedSongs, addToast]);
 
   const handlePlaySong = (song: SavedSong) => {
     setPlayerDialog({
@@ -419,12 +463,45 @@ export function MySongsPage() {
                   </button>
                   {selectedIds.length > 0 && (
                     <>
-                      <Button size="sm" variant="secondary" onClick={handleSaveAsPlaylist}>
-                        Save as Playlist
-                      </Button>
-                      <Button size="sm" onClick={handleMergeSelected}>
-                        Merge ({selectedIds.length})
-                      </Button>
+                      {/* Save as Playlist — split button */}
+                      <div className="flex">
+                        <button
+                          onClick={handleQuickSavePlaylist}
+                          className="rounded-l-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors hover:bg-neutral-700"
+                        >
+                          Save as Playlist
+                        </button>
+                        <button
+                          onClick={handleSaveAsPlaylist}
+                          className="-ml-px rounded-r-lg bg-neutral-800 px-1.5 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-700 hover:text-white"
+                          title="Reorder songs before saving"
+                          aria-label="Reorder songs"
+                        >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* Merge — split button */}
+                      <div className="flex">
+                        <button
+                          onClick={handleQuickMerge}
+                          className="rounded-l-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
+                        >
+                          Merge ({selectedIds.length})
+                        </button>
+                        <button
+                          onClick={handleMergeSelected}
+                          className="-ml-px rounded-r-lg bg-blue-600 px-1.5 py-1.5 text-blue-300 transition-colors hover:bg-blue-500 hover:text-white"
+                          title="Reorder songs before merging"
+                          aria-label="Reorder songs"
+                        >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+                      </div>
                     </>
                   )}
                   <button

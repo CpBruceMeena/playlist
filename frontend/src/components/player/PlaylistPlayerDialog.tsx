@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, memo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { useSimplePlayer } from "../../hooks/useSimplePlayer";
 
 const PLAYER_CONTAINER_ID = "playlist-player-container";
@@ -22,6 +22,15 @@ function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
 }
 
 const QueueItemTile = memo(function QueueItemTile({
@@ -82,38 +91,80 @@ const QueueItemTile = memo(function QueueItemTile({
 });
 
 export function PlaylistPlayerDialog({ videos, initialIndex = 0, title, onClose }: PlaylistPlayerDialogProps) {
-  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  // ── Playback order ──
+  const sequentialOrder = useMemo(() => videos.map((_, i) => i), [videos]);
+  const [playOrder, setPlayOrder] = useState<number[]>(sequentialOrder);
+  const [currentPlayIndex, setCurrentPlayIndex] = useState(initialIndex);
+  const [shuffled, setShuffled] = useState(false);
+  const [repeatMode, setRepeatMode] = useState<"none" | "all">("none");
+
+  const currentVideoIndex = playOrder[currentPlayIndex];
+  const currentVideo = videos[currentVideoIndex];
+
   const [isQueueOpen, setIsQueueOpen] = useState(true);
   const [videoHeight, setVideoHeight] = useState(0);
   const queueRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
-  const currentVideo = videos[currentIndex];
+  // ── Navigation ──
 
-  const handleNext = useCallback(() => {
-    if (currentIndex < videos.length - 1) {
-      setCurrentIndex((i) => i + 1);
+  const goNext = useCallback(() => {
+    if (currentPlayIndex < playOrder.length - 1) {
+      setCurrentPlayIndex((i) => i + 1);
+    } else if (repeatMode === "all") {
+      setCurrentPlayIndex(0);
     }
-  }, [currentIndex, videos.length]);
+  }, [currentPlayIndex, playOrder.length, repeatMode]);
 
-  const handlePrevious = useCallback(() => {
-    if (currentIndex > 0) {
-      setCurrentIndex((i) => i - 1);
+  const goPrev = useCallback(() => {
+    if (currentPlayIndex > 0) {
+      setCurrentPlayIndex((i) => i - 1);
+    } else if (repeatMode === "all") {
+      setCurrentPlayIndex(playOrder.length - 1);
     }
-  }, [currentIndex]);
+  }, [currentPlayIndex, repeatMode, playOrder.length]);
+
+  // ── Shuffle ──
+
+  const handleToggleShuffle = useCallback(() => {
+    if (shuffled) {
+      // Restore sequential order, keep current position
+      setPlayOrder(sequentialOrder);
+      setCurrentPlayIndex(currentVideoIndex);
+      setShuffled(false);
+    } else {
+      // Shuffle: keep current video at front, randomize the rest
+      const rest = sequentialOrder.filter((i) => i !== currentVideoIndex);
+      setPlayOrder([currentVideoIndex, ...shuffleArray(rest)]);
+      setCurrentPlayIndex(0);
+      setShuffled(true);
+    }
+  }, [shuffled, sequentialOrder, currentVideoIndex]);
+
+  // ── Repeat ──
+
+  const handleToggleRepeat = useCallback(() => {
+    setRepeatMode((prev) => (prev === "none" ? "all" : "none"));
+  }, []);
+
+  // ── End handler ──
 
   const handleEnd = useCallback(() => {
-    if (currentIndex < videos.length - 1) {
-      setCurrentIndex((i) => i + 1);
+    if (currentPlayIndex < playOrder.length - 1) {
+      setCurrentPlayIndex((i) => i + 1);
+    } else if (repeatMode === "all") {
+      setCurrentPlayIndex(0);
     }
-  }, [currentIndex, videos.length]);
+  }, [currentPlayIndex, playOrder.length, repeatMode]);
+
+  // ── Player ──
 
   const { loadVideo, isReady } = useSimplePlayer({
     containerId: PLAYER_CONTAINER_ID,
     onEnd: handleEnd,
   });
 
-  // Load video when currentIndex changes or player becomes ready
+  // Load video when current changes or player becomes ready
   useEffect(() => {
     if (currentVideo && isReady) {
       loadVideo(currentVideo.id);
@@ -145,7 +196,7 @@ export function PlaylistPlayerDialog({ videos, initialIndex = 0, title, onClose 
         activeItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
       }
     }
-  }, [currentIndex]);
+  }, [currentPlayIndex]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -157,18 +208,18 @@ export function PlaylistPlayerDialog({ videos, initialIndex = 0, title, onClose 
         case "ArrowRight":
         case "ArrowDown":
           e.preventDefault();
-          handleNext();
+          goNext();
           break;
         case "ArrowLeft":
         case "ArrowUp":
           e.preventDefault();
-          handlePrevious();
+          goPrev();
           break;
       }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, handleNext, handlePrevious]);
+  }, [onClose, goNext, goPrev]);
 
   // Body scroll lock
   useEffect(() => {
@@ -180,8 +231,8 @@ export function PlaylistPlayerDialog({ videos, initialIndex = 0, title, onClose 
 
   if (!currentVideo) return null;
 
-  const hasPrevious = currentIndex > 0;
-  const hasNext = currentIndex < videos.length - 1;
+  const hasPrevious = currentPlayIndex > 0 || repeatMode === "all";
+  const hasNext = currentPlayIndex < playOrder.length - 1 || repeatMode === "all";
 
   return (
     <div
@@ -209,15 +260,35 @@ export function PlaylistPlayerDialog({ videos, initialIndex = 0, title, onClose 
                 {title ?? "Now Playing"}
               </p>
               <p className="truncate text-[11px] text-neutral-500">
-                {currentIndex + 1} of {videos.length}
+                {currentPlayIndex + 1} of {playOrder.length}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1">
+            {/* Shuffle */}
+            <button
+              onClick={handleToggleShuffle}
+              className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all ${
+                shuffled
+                  ? "text-blue-400 bg-blue-500/15 hover:bg-blue-500/25"
+                  : "text-white/50 hover:bg-white/10 hover:text-white/80"
+              }`}
+              aria-label={shuffled ? "Disable shuffle" : "Enable shuffle"}
+              title={shuffled ? "Shuffle on" : "Shuffle off"}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 3 21 3 21 8" />
+                <line x1="4" y1="20" x2="21" y2="3" />
+                <polyline points="21 16 21 21 16 21" />
+                <line x1="15" y1="15" x2="21" y2="21" />
+                <line x1="4" y1="4" x2="9" y2="9" />
+              </svg>
+            </button>
+
             {/* Previous */}
             <button
-              onClick={handlePrevious}
+              onClick={goPrev}
               disabled={!hasPrevious}
               className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all ${
                 hasPrevious
@@ -233,7 +304,7 @@ export function PlaylistPlayerDialog({ videos, initialIndex = 0, title, onClose 
 
             {/* Next */}
             <button
-              onClick={handleNext}
+              onClick={goNext}
               disabled={!hasNext}
               className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all ${
                 hasNext
@@ -245,6 +316,28 @@ export function PlaylistPlayerDialog({ videos, initialIndex = 0, title, onClose 
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
               </svg>
+            </button>
+
+            {/* Repeat */}
+            <button
+              onClick={handleToggleRepeat}
+              className={`relative flex h-8 w-8 items-center justify-center rounded-lg transition-all ${
+                repeatMode === "all"
+                  ? "text-blue-400 bg-blue-500/15 hover:bg-blue-500/25"
+                  : "text-white/50 hover:bg-white/10 hover:text-white/80"
+              }`}
+              aria-label={repeatMode === "all" ? "Disable repeat all" : "Enable repeat all"}
+              title={repeatMode === "all" ? "Repeat all on" : "Repeat all off"}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="17 1 21 5 17 9" />
+                <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                <polyline points="7 23 3 19 7 15" />
+                <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+              </svg>
+              {repeatMode === "all" && (
+                <span className="absolute -bottom-0.5 text-[7px] font-bold text-blue-400">1</span>
+              )}
             </button>
 
             {/* Toggle queue panel (for mobile) */}
@@ -293,7 +386,13 @@ export function PlaylistPlayerDialog({ videos, initialIndex = 0, title, onClose 
             <div className="shrink-0 border-b border-neutral-800 bg-neutral-900/90 px-3 py-2.5">
               <p className="text-xs font-semibold text-neutral-300">Up Next</p>
               <p className="text-[10px] text-neutral-600">
-                {videos.length > 1 ? `${videos.length} videos` : "1 video"}
+                {playOrder.length > 1 ? `${playOrder.length} videos` : "1 video"}
+                {shuffled && (
+                  <span className="ml-1.5 text-blue-400">· shuffled</span>
+                )}
+                {repeatMode === "all" && (
+                  <span className="ml-1.5 text-blue-400">· repeat all</span>
+                )}
               </p>
             </div>
 
@@ -301,11 +400,14 @@ export function PlaylistPlayerDialog({ videos, initialIndex = 0, title, onClose 
             <div ref={queueRef} className="flex-1 overflow-y-auto">
               <div className="flex flex-col gap-0.5 p-2">
                 {videos.map((video, i) => (
-                  <div key={`${video.id}-${i}`} data-active={i === currentIndex}>
+                  <div key={`${video.id}-${i}`} data-active={currentVideoIndex === i}>
                     <QueueItemTile
                       item={video}
-                      isActive={i === currentIndex}
-                      onClick={() => setCurrentIndex(i)}
+                      isActive={currentVideoIndex === i}
+                      onClick={() => {
+                        const pos = playOrder.indexOf(i);
+                        if (pos !== -1) setCurrentPlayIndex(pos);
+                      }}
                     />
                   </div>
                 ))}
