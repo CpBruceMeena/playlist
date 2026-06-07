@@ -1,46 +1,86 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarLayout } from "../components/layout/Sidebar";
-import { YouTubePlayer } from "../components/player/YouTubePlayer";
-import { QueueList, QueueHeader } from "../components/player/QueueList";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
 import { Spinner } from "../components/ui/Spinner";
 import { EmptyState } from "../components/feedback/EmptyState";
+import { PlaylistPlayerDialog } from "../components/player/PlaylistPlayerDialog";
 import { usePlaylistStore } from "../stores/playlistStore";
-import { usePlayerStore } from "../stores/playerStore";
 import { useSavedPlaylistsStore } from "../stores/savedPlaylistsStore";
 import { useToastStore } from "../stores/toastStore";
 import { useFilterStore } from "../stores/filterStore";
 import { useSingerStore, hasSingerAttribution } from "../stores/singerStore";
-import { useSavedSongsStore } from "../stores/savedSongsStore";
 import { savePlaylistToBackend } from "../api/playlists";
+import type { YouTubeVideo } from "@playlist/types";
+
+function formatDuration(seconds: number): string {
+  if (!seconds) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function VideoTile({ video, onPlay }: { video: YouTubeVideo; onPlay: () => void }) {
+  return (
+    <div
+      onClick={onPlay}
+      className="group flex cursor-pointer flex-col overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/50 transition-all duration-200 hover:border-blue-500/40 hover:bg-neutral-900 hover:shadow-lg hover:shadow-blue-500/5"
+    >
+      <div className="relative aspect-video w-full overflow-hidden bg-neutral-800">
+        <img
+          src={video.thumbnailUrl}
+          alt=""
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        <div className="absolute bottom-1.5 right-1.5 rounded-md bg-black/80 px-1.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm">
+          {formatDuration(video.durationSeconds)}
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-200 group-hover:bg-black/30">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/90 opacity-0 shadow-lg shadow-blue-600/30 transition-all duration-200 group-hover:opacity-100 group-hover:scale-110">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+              <polygon points="8,5 8,19 19,12" />
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1 p-3">
+        <p className="line-clamp-2 text-xs font-medium leading-tight text-neutral-200 group-hover:text-white">
+          {video.title}
+        </p>
+        <div className="flex flex-wrap items-center gap-1">
+          {video.singerName ? (
+            <span className="truncate rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400">
+              {video.singerName}
+            </span>
+          ) : (
+            <span className="truncate text-[10px] text-neutral-500">
+              {video.channelTitle}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function PlaylistPage() {
   const navigate = useNavigate();
   const { videos, error } = usePlaylistStore();
-  const {
-    queue,
-    shuffleMode,
-    toggleShuffle,
-    repeatMode,
-    toggleRepeat,
-  } = usePlayerStore();
-  const getFilterPayload = useFilterStore((s) => s.getFilterPayload);
   const query = useFilterStore((s) => s.query);
   const savePlaylist = useSavedPlaylistsStore((s) => s.savePlaylist);
   const addToast = useToastStore((s) => s.addToast);
   const singerNames = useSingerStore((s) => s.singerNames);
   const clearGenerated = useSingerStore((s) => s.clearGenerated);
-  const loadSongs = useSavedSongsStore((s) => s.loadFromStorage);
 
-  // Load saved songs from storage on mount
-  useEffect(() => {
-    loadSongs();
-  }, [loadSongs]);
-
-  // Selection state for saving/merging songs
-  const [isSelecting, setIsSelecting] = useState(false);
+  // Player dialog state
+  const [playerDialog, setPlayerDialog] = useState<{
+    videos: { id: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[];
+    initialIndex: number;
+    title: string;
+  } | null>(null);
 
   // Save dialog state
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -48,8 +88,26 @@ export function PlaylistPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Determine active videos from queue (not store videos, since queue can be reordered)
-  const activeVideos = queue.length > 0 ? queue : videos;
+  const activeVideos = videos;
+
+  // Convert YouTubeVideo to the format expected by save
+  const activeYouTubeVideos = activeVideos.map((v) => ({
+    id: v.id,
+    title: v.title,
+    description: v.description,
+    channelId: v.channelId,
+    channelTitle: v.channelTitle,
+    thumbnailUrl: v.thumbnailUrl,
+    duration: v.duration,
+    durationSeconds: v.durationSeconds,
+    singerName: v.singerName,
+    singerId: v.singerId,
+    viewCount: v.viewCount,
+    likeCount: v.likeCount,
+    publishedAt: v.publishedAt,
+    tags: v.tags,
+    videoType: v.videoType as "music" | "live" | "shorts" | "standard",
+  }));
 
   const handleSave = useCallback(() => {
     const q = useFilterStore.getState().query;
@@ -68,7 +126,7 @@ export function PlaylistPage() {
     setSaveError(null);
 
     try {
-      const filters = getFilterPayload();
+      const filters = useFilterStore.getState().getFilterPayload();
       let savedToBackend = false;
 
       // Save to backend first (authoritative save)
@@ -77,7 +135,7 @@ export function PlaylistPage() {
           playlistName.trim(),
           query,
           filters,
-          activeVideos
+          activeYouTubeVideos
         );
         savedToBackend = true;
         addToast({
@@ -112,7 +170,7 @@ export function PlaylistPage() {
           playlistName.trim(),
           query,
           filters,
-          activeVideos
+          activeYouTubeVideos
         );
 
         if (typeof localResult === "object" && localResult !== null && "error" in localResult) {
@@ -132,13 +190,13 @@ export function PlaylistPage() {
     } finally {
       setSaving(false);
     }
-  }, [playlistName, getFilterPayload, query, activeVideos, savePlaylist, addToast]);
+  }, [playlistName, query, activeVideos, savePlaylist, addToast]);
 
-  const isMultiSinger = hasSingerAttribution(queue);
+  const isMultiSinger = hasSingerAttribution(videos as unknown as { singerName?: string }[]);
   const singerCount = isMultiSinger ? Object.keys(singerNames).length : 0;
 
-  // Show empty state if no playlist data is loaded (instead of redirecting to home)
-  if (videos.length === 0 && queue.length === 0 && !error) {
+  // Show empty state if no playlist data is loaded
+  if (videos.length === 0 && !error) {
     return (
       <SidebarLayout>
         <main className="mx-auto max-w-5xl px-4 pt-6 text-center">
@@ -183,7 +241,7 @@ export function PlaylistPage() {
         </div>
       }
     >
-      <main className="animate-page-in mx-auto max-w-6xl px-4 py-6">
+      <main className="animate-page-in mx-auto max-w-7xl px-4 py-6">
         {/* Singer attribution banner */}
         {isMultiSinger && (
           <div className="mb-6 flex flex-wrap items-center gap-2 rounded-lg border border-blue-900/40 bg-blue-950/20 px-4 py-3">
@@ -208,35 +266,40 @@ export function PlaylistPage() {
           </div>
         )}
 
-        <div className="flex flex-col gap-6 lg:flex-row">
-          {/* Player section */}
-          <div className="flex-1">
-            <YouTubePlayer />
-          </div>
-
-          {/* Queue section */}
-          <div className="w-full lg:w-80">
-            <div className="rounded-xl border border-neutral-800 bg-neutral-900/50">
-              <QueueHeader
-                count={queue.length}
-                shuffleMode={shuffleMode}
-                repeatMode={repeatMode}
-                onToggleShuffle={toggleShuffle}
-                onToggleRepeat={toggleRepeat}
-                isSelecting={isSelecting}
-                onToggleSelect={() => setIsSelecting((prev) => !prev)}
-              />
-
-              <div className="max-h-[60vh] overflow-y-auto">
-                <QueueList
-                  isSelecting={isSelecting}
-                  onToggleSelect={() => setIsSelecting((prev) => !prev)}
-                />
-              </div>
-            </div>
-          </div>
+        {/* Video grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          {videos.map((video) => (
+            <VideoTile
+              key={video.id}
+              video={video}
+              onPlay={() => {
+                const index = videos.findIndex((v) => v.id === video.id);
+                if (index === -1) return;
+                setPlayerDialog({
+                  videos: videos.map((v) => ({
+                    id: v.id,
+                    title: v.title,
+                    thumbnailUrl: v.thumbnailUrl,
+                    durationSeconds: v.durationSeconds,
+                  })),
+                  initialIndex: index,
+                  title: query || "Playlist",
+                });
+              }}
+            />
+          ))}
         </div>
       </main>
+
+      {/* Playlist player dialog */}
+      {playerDialog && (
+        <PlaylistPlayerDialog
+          videos={playerDialog.videos}
+          initialIndex={playerDialog.initialIndex}
+          title={playerDialog.title}
+          onClose={() => setPlayerDialog(null)}
+        />
+      )}
 
       {/* Save playlist dialog */}
       {showSaveDialog && (

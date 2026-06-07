@@ -199,7 +199,7 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 	}
 	var singerSearches []singerSearch
 
-	// Fetch DB singers (convert string IDs to uint)
+	// Fetch DB singers (convert string IDs to uint for DB query)
 	var singerUintIDs []uint
 	for _, sid := range req.SingerIDs {
 		if parsed, err := strconv.ParseUint(sid, 10, 64); err == nil {

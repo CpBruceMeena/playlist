@@ -1,10 +1,5 @@
 import { useState, useEffect, memo, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
-import { useYouTubePlayer } from "../../hooks/useYouTubePlayer";
-import { usePlayerStore } from "../../stores/playerStore";
-import { MiniPlayer } from "../player/MiniPlayer";
-import { MiniPlayerErrorBoundary } from "../feedback/MiniPlayerErrorBoundary";
 
 interface SidebarLayoutProps {
   children: ReactNode;
@@ -153,78 +148,9 @@ export const SidebarLayout = memo(function SidebarLayout({ children, actions, no
           </div>
         )}
 
-        {/* Page content — add bottom padding for mini-player */}
+        {/* Page content */}
         {children}
       </div>
     </div>
   );
 });
-
-/* ─── Persistent YouTube Player ─── */
-
-export const PLAYER_CONTAINER_ID = "youtube-player";
-
-export function PersistentPlayerProvider({ children }: { children: ReactNode }) {
-  return (
-    <>
-      {children}
-
-      {/* Portal YouTube container to document.body so YT.Player's iframe is
-          completely outside React's reconciliation tree — prevents DOM clashes
-          between the iframe and MiniPlayer during route transitions. */}
-      {createPortal(
-        <div
-          id={PLAYER_CONTAINER_ID}
-          className="pointer-events-none fixed -left-[9999px] top-0 h-[360px] w-[640px] opacity-0"
-        />,
-        document.body,
-      )}
-    </>
-  );
-}
-
-export function PersistentPlayerContent() {
-  const location = useLocation();
-  const isPlaylistPage = location.pathname.startsWith("/playlist");
-
-  const next = usePlayerStore((s) => s.next);
-
-  const handleEnd = () => {
-    usePlayerStore.getState().setPlaying(true);
-    next();
-  };
-
-  const handleError = (errorCode: number) => {
-    console.warn("YouTube player error:", errorCode);
-    next();
-  };
-
-  useYouTubePlayer(PLAYER_CONTAINER_ID, {
-    onEnd: handleEnd,
-    onError: handleError,
-    // On /playlist, the inline YouTube embed iframe handles playback,
-    // so skip creating the off-screen YT.Player to avoid double audio.
-    visible: !isPlaylistPage,
-  });
-
-  const queue = usePlayerStore((s) => s.queue);
-  const currentIndex = usePlayerStore((s) => s.currentIndex);
-  const playingMergedVideo = usePlayerStore((s) => s.playingMergedVideo);
-  const hasContent =
-    (queue.length > 0 && currentIndex >= 0) || playingMergedVideo !== null;
-
-  const isMergedVideosPage = location.pathname.startsWith("/merged-videos");
-  const hasInlinePlayer = isPlaylistPage || (isMergedVideosPage && playingMergedVideo !== null);
-
-  return (
-    <>
-      {/* Mini-player bar at bottom — hidden when inline player is shown */}
-      {/* Key uses pathname so error boundary resets on every navigation */}
-      {hasContent && !hasInlinePlayer && (
-        <MiniPlayerErrorBoundary key={location.pathname}>
-          <MiniPlayer />
-        </MiniPlayerErrorBoundary>
-      )}
-    </>
-  );
-}

@@ -3,11 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { SidebarLayout } from "../components/layout/Sidebar";
 import { EmptyState } from "../components/feedback/EmptyState";
 import { Spinner } from "../components/ui/Spinner";
+import { PlaylistPlayerDialog } from "../components/player/PlaylistPlayerDialog";
 import {
   useSavedPlaylistsStore,
   type SavedPlaylist,
 } from "../stores/savedPlaylistsStore";
-import { usePlayerStore } from "../stores/playerStore";
 import { useToastStore } from "../stores/toastStore";
 
 function formatDate(iso: string): string {
@@ -25,22 +25,15 @@ function formatDate(iso: string): string {
 
 const PlaylistTile = memo(function PlaylistTile({
   playlist,
-  onLoad,
-  onAddNext,
-  onAddToQueue,
+  onPlay,
   onDelete,
   onRename,
 }: {
   playlist: SavedPlaylist;
-  onLoad: () => void;
-  onAddNext: () => void;
-  onAddToQueue: () => void;
+  onPlay: () => void;
   onDelete: () => void;
   onRename: (newName: string) => void;
 }) {
-  const playerActive = usePlayerStore(
-    (s) => (s.queue.length > 0 && s.currentIndex >= 0) || s.playingMergedVideo !== null,
-  );
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(playlist.name);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -99,7 +92,7 @@ const PlaylistTile = memo(function PlaylistTile({
 
         {/* Hover play overlay */}
         <div
-          onClick={(e) => { e.stopPropagation(); onLoad(); }}
+          onClick={(e) => { e.stopPropagation(); onPlay(); }}
           className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/0 transition-all duration-200 group-hover:bg-black/30"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/90 opacity-0 shadow-lg shadow-blue-600/30 transition-all duration-200 group-hover:opacity-100 group-hover:scale-110">
@@ -114,10 +107,10 @@ const PlaylistTile = memo(function PlaylistTile({
           {playlist.videoCount}
         </div>
 
-        {/* Delete button — top-right corner, hover reveal */}
+        {/* Delete button — always visible */}
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="absolute right-1.5 top-1.5 z-20 flex h-7 w-7 items-center justify-center rounded-lg bg-black/60 text-neutral-400 opacity-0 backdrop-blur-sm transition-all duration-200 hover:bg-red-900/60 hover:text-red-400 group-hover:opacity-100"
+          className="absolute right-1.5 top-1.5 z-20 flex h-7 w-7 items-center justify-center rounded-lg bg-black/60 text-neutral-400 backdrop-blur-sm transition-all duration-200 hover:bg-red-900/60 hover:text-red-400"
           aria-label="Delete playlist"
           title="Delete"
         >
@@ -128,28 +121,6 @@ const PlaylistTile = memo(function PlaylistTile({
             <line x1="14" y1="11" x2="14" y2="17" />
           </svg>
         </button>
-
-        {/* Hover-reveal queue action buttons */}
-        {playerActive && (
-          <div className="absolute bottom-0 left-0 right-0 translate-y-full opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 z-10">
-            <div className="bg-gradient-to-t from-black/90 via-black/70 to-transparent px-2 pb-2 pt-6">
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={(e) => { e.stopPropagation(); onAddNext(); }}
-                  className="flex-1 rounded-md bg-blue-600/20 py-1 text-[10px] font-medium text-blue-300 transition-colors hover:bg-blue-600/30 hover:text-blue-200"
-                >
-                  Next
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onAddToQueue(); }}
-                  className="flex-1 rounded-md bg-white/10 py-1 text-[10px] font-medium text-neutral-300 transition-colors hover:bg-white/20"
-                >
-                  Queue
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Info */}
@@ -193,7 +164,6 @@ const PlaylistTile = memo(function PlaylistTile({
             {formatDate(playlist.createdAt)}
           </span>
         </div>
-
       </div>
     </div>
   );
@@ -210,62 +180,33 @@ export function MyPlaylistsPage() {
     renamePlaylist,
   } = useSavedPlaylistsStore();
 
-  const initQueue = usePlayerStore((s) => s.initQueue);
+  // Player dialog state
+  const [playerDialog, setPlayerDialog] = useState<{
+    videos: { id: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[];
+    initialIndex: number;
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     loadFromStorage();
   }, [loadFromStorage]);
 
-  const addNext = usePlayerStore((s) => s.addPlaylistNext);
-  const addToQueue = usePlayerStore((s) => s.addPlaylistToQueue);
-
-  const handleLoadPlaylist = (playlist: SavedPlaylist) => {
-    initQueue(playlist.videos);
-    navigate("/playlist");
-    addToast({
-      message: `Loaded "${playlist.name}"`,
-      type: "success",
-      duration: 2500,
+  const handlePlayPlaylist = (playlist: SavedPlaylist) => {
+    if (playlist.videos.length === 0) return;
+    setPlayerDialog({
+      videos: playlist.videos.map((v) => ({
+        id: v.id,
+        title: v.title,
+        thumbnailUrl: v.thumbnailUrl,
+        durationSeconds: v.durationSeconds,
+      })),
+      initialIndex: 0,
+      title: playlist.name,
     });
   };
 
-  const handleAddPlaylistNext = (playlist: SavedPlaylist) => {
-    addNext(playlist.videos);
-    navigate("/playlist");
-    addToast({
-      message: `"${playlist.name}" will play next (${playlist.videos.length} songs)`,
-      type: "info",
-      duration: 2500,
-    });
-  };
-
-  const handleAddPlaylistToQueue = (playlist: SavedPlaylist) => {
-    addToQueue(playlist.videos);
-    navigate("/playlist");
-    addToast({
-      message: `"${playlist.name}" added to queue (${playlist.videos.length} songs)`,
-      type: "info",
-      duration: 2500,
-    });
-  };
-
-  const handleDeletePlaylist = (id: string, name: string) => {
-    let undoClicked = false;
-    addToast({
-      message: `Deleted "${name}"`,
-      type: "info",
-      duration: 5000,
-      action: {
-        label: "Undo",
-        onClick: () => {
-          undoClicked = true;
-          addToast({ message: `Restored "${name}"`, type: "success", duration: 2000 });
-        },
-      },
-    });
-    setTimeout(() => {
-      if (!undoClicked) deletePlaylist(id);
-    }, 5500);
+  const handleDeletePlaylist = (id: string) => {
+    deletePlaylist(id);
   };
 
   const handleRenamePlaylist = (id: string, newName: string) => {
@@ -315,14 +256,22 @@ export function MyPlaylistsPage() {
               <PlaylistTile
                 key={playlist.id}
                 playlist={playlist}
-                onLoad={() => handleLoadPlaylist(playlist)}
-                onAddNext={() => handleAddPlaylistNext(playlist)}
-                onAddToQueue={() => handleAddPlaylistToQueue(playlist)}
-                onDelete={() => handleDeletePlaylist(playlist.id, playlist.name)}
+                onPlay={() => handlePlayPlaylist(playlist)}
+                onDelete={() => handleDeletePlaylist(playlist.id)}
                 onRename={(newName) => handleRenamePlaylist(playlist.id, newName)}
               />
             ))}
           </div>
+        )}
+
+        {/* Playlist player dialog */}
+        {playerDialog && (
+          <PlaylistPlayerDialog
+            videos={playerDialog.videos}
+            initialIndex={playerDialog.initialIndex}
+            title={playerDialog.title}
+            onClose={() => setPlayerDialog(null)}
+          />
         )}
       </main>
     </SidebarLayout>

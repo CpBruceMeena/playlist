@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarLayout } from "../components/layout/Sidebar";
 import { EmptyState } from "../components/feedback/EmptyState";
 import { Spinner } from "../components/ui/Spinner";
+import { VideoPlayerModal } from "../components/player/VideoPlayerModal";
 import { useMergedVideosStore, type MergeJob } from "../stores/mergedVideosStore";
-import { usePlayerStore } from "../stores/playerStore";
-import { useToastStore } from "../stores/toastStore";
-import { listMergedVideos } from "../api/merge";
+import { listMergedVideos, deleteMergedVideo } from "../api/merge";
 import type { MergedVideo } from "@playlist/types";
 
 function formatDuration(seconds: number): string {
@@ -29,105 +28,15 @@ function formatDate(iso: string): string {
   }
 }
 
-const MergedVideoPlayer = memo(function MergedVideoPlayer({ video, onClose }: { video: MergedVideo; onClose: () => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const mergedVideoCurrentTime = usePlayerStore((s) => s.mergedVideoCurrentTime);
-  const setMergedVideoCurrentTime = usePlayerStore((s) => s.setMergedVideoCurrentTime);
-
-  // Restore playback position on mount
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    if (mergedVideoCurrentTime > 0) {
-      el.currentTime = mergedVideoCurrentTime;
-    }
-    el.play().catch(() => {});
-  }, []); // only on mount
-
-  // Save position on interval while playing
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    const interval = setInterval(() => {
-      if (!el.paused) {
-        setMergedVideoCurrentTime(el.currentTime);
-      }
-    }, 500);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Save position on unmount
-  useEffect(() => {
-    return () => {
-      const el = videoRef.current;
-      if (el && el.currentTime > 0) {
-        setMergedVideoCurrentTime(el.currentTime);
-      }
-    };
-  }, []);
-
-  return (
-    <div className="mb-6 overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
-      <div className="relative bg-black">
-        <video
-          ref={videoRef}
-          src={video.videoUrl}
-          className="w-full max-h-[60vh]"
-          controls
-          playsInline
-          preload="auto"
-        />
-      </div>
-      <div className="flex items-center justify-between px-4 py-3">
-        <div>
-          <h3 className="text-sm font-semibold text-white">{video.title}</h3>
-          <p className="text-xs text-neutral-500">
-            {video.songCount} songs · {formatDuration(video.duration)}
-          </p>
-        </div>
-        <button
-          onClick={onClose}
-          className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:text-white"
-        >
-          Close
-        </button>
-      </div>
-      <div className="border-t border-neutral-800 px-4 py-3">
-        <p className="mb-2 text-xs font-medium text-neutral-500">Included songs:</p>
-        <div className="flex flex-col gap-1.5">
-          {video.songs.map((song, i) => (
-            <div key={song.id} className="flex items-center gap-2 text-xs text-neutral-400">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 text-[10px] text-blue-400">
-                {i + 1}
-              </span>
-              <span className="truncate">{song.title}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-});
-
 const MergedVideoTile = memo(function MergedVideoTile({
   video,
   onPlay,
   onDelete,
-  onAddNext,
-  onAddToQueue,
-  onAddToPlaylist,
 }: {
   video: MergedVideo;
   onPlay: () => void;
   onDelete: () => void;
-  onAddNext: () => void;
-  onAddToQueue: () => void;
-  onAddToPlaylist: () => void;
 }) {
-  const playerActive = usePlayerStore(
-    (s) => (s.queue.length > 0 && s.currentIndex >= 0) || s.playingMergedVideo !== null,
-  );
-
   return (
     <div
       onClick={onPlay}
@@ -175,10 +84,10 @@ const MergedVideoTile = memo(function MergedVideoTile({
           </div>
         </div>
 
-        {/* Delete button — top-right corner, hover reveal */}
+        {/* Delete button — always visible */}
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="absolute right-1.5 top-1.5 z-20 flex h-7 w-7 items-center justify-center rounded-lg bg-black/60 text-neutral-400 opacity-0 backdrop-blur-sm transition-all duration-200 hover:bg-red-900/60 hover:text-red-400 group-hover:opacity-100"
+          className="absolute right-1.5 top-1.5 z-20 flex h-7 w-7 items-center justify-center rounded-lg bg-red-900/50 text-red-400 backdrop-blur-sm transition-all duration-200 hover:bg-red-600 hover:text-white"
           aria-label="Delete merged video"
           title="Delete"
         >
@@ -189,38 +98,6 @@ const MergedVideoTile = memo(function MergedVideoTile({
             <line x1="14" y1="11" x2="14" y2="17" />
           </svg>
         </button>
-
-        {/* Hover-reveal queue action buttons */}
-        {playerActive && (
-          <div className="absolute bottom-0 left-0 right-0 translate-y-full opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 z-10">
-            <div className="bg-gradient-to-t from-black/90 via-black/70 to-transparent px-2 pb-2 pt-6">
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={(e) => { e.stopPropagation(); onAddNext(); }}
-                  className="flex-1 rounded-md bg-blue-600/20 py-1 text-[10px] font-medium text-blue-300 transition-colors hover:bg-blue-600/30 hover:text-blue-200"
-                >
-                  Play next
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onAddToQueue(); }}
-                  className="flex-1 rounded-md bg-white/10 py-1 text-[10px] font-medium text-neutral-300 transition-colors hover:bg-white/20"
-                >
-                  Queue
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onAddToPlaylist(); }}
-                  className="flex items-center justify-center rounded-md bg-white/10 p-1 text-neutral-300 transition-colors hover:bg-white/20 hover:text-white"
-                  aria-label="Add to playlist"
-                  title="Add to playlist"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Info */}
@@ -248,7 +125,6 @@ const MergedVideoTile = memo(function MergedVideoTile({
             )}
           </div>
         )}
-
       </div>
     </div>
   );
@@ -317,13 +193,10 @@ const MergeJobCard = memo(function MergeJobCard({ job }: { job: MergeJob }) {
 export function MergedVideosPage() {
   const navigate = useNavigate();
   const { mergedVideos, mergeJobs, setMergedVideos, removeMergedVideo } = useMergedVideosStore();
-  const playingMergedVideo = usePlayerStore((s) => s.playingMergedVideo);
-  const setPlayingMergedVideo = usePlayerStore((s) => s.setPlayingMergedVideo);
-  const addMergedNext = usePlayerStore((s) => s.addMergedNext);
-  const addMergedToQueue = usePlayerStore((s) => s.addMergedToQueue);
-  const mergedQueue = usePlayerStore((s) => s.mergedQueue);
-  const addToast = useToastStore((s) => s.addToast);
   const [loading, setLoading] = useState(true);
+
+  // Video player modal state
+  const [playerVideo, setPlayerVideo] = useState<MergedVideo | null>(null);
 
   useEffect(() => {
     async function fetchMergedVideos() {
@@ -342,26 +215,18 @@ export function MergedVideosPage() {
   }, [setMergedVideos]);
 
   const handlePlayMergedVideo = (video: MergedVideo) => {
-    setPlayingMergedVideo(video);
+    setPlayerVideo(video);
   };
 
-  const handleDeleteMergedVideo = (video: MergedVideo) => {
-    let undoClicked = false;
-    addToast({
-      message: `Deleted "${video.title}"`,
-      type: "info",
-      duration: 5000,
-      action: {
-        label: "Undo",
-        onClick: () => {
-          undoClicked = true;
-          addToast({ message: `Restored "${video.title}"`, type: "success", duration: 2000 });
-        },
-      },
-    });
-    setTimeout(() => {
-      if (!undoClicked) removeMergedVideo(video.id);
-    }, 5500);
+  const handleDeleteMergedVideo = async (video: MergedVideo) => {
+    // Delete from local store immediately
+    removeMergedVideo(video.id);
+    // Delete from backend so it doesn't reappear on refresh
+    try {
+      await deleteMergedVideo(video.id);
+    } catch {
+      // Backend might be unavailable — local delete is sufficient for now
+    }
   };
 
   const hasContent = mergedVideos.length > 0 || mergeJobs.length > 0;
@@ -382,14 +247,6 @@ export function MergedVideosPage() {
           </div>
         </div>
 
-        {/* Currently playing video */}
-        {playingMergedVideo && (
-          <MergedVideoPlayer
-            video={playingMergedVideo}
-            onClose={() => setPlayingMergedVideo(null)}
-          />
-        )}
-
         {/* Content */}
         {loading ? (
           <div className="flex justify-center py-16">
@@ -406,6 +263,15 @@ export function MergedVideosPage() {
           />
         ) : (
           <>
+            {/* Video player modal */}
+            {playerVideo && (
+              <VideoPlayerModal
+                videoUrl={playerVideo.videoUrl}
+                title={playerVideo.title}
+                onClose={() => setPlayerVideo(null)}
+              />
+            )}
+
             {/* In-progress merges */}
             {mergeJobs.length > 0 && (
               <div className="mb-6 flex flex-col gap-3">
@@ -429,19 +295,6 @@ export function MergedVideosPage() {
                       video={video}
                       onPlay={() => handlePlayMergedVideo(video)}
                       onDelete={() => handleDeleteMergedVideo(video)}
-                      onAddNext={() => {
-                        addMergedNext(video);
-                        const pos = playingMergedVideo ? 1 : 0;
-                        addToast({ message: `"${video.title}" will play next (position ${pos})`, type: "info", duration: 2000 });
-                      }}
-                      onAddToQueue={() => {
-                        addMergedToQueue(video);
-                        const pos = (playingMergedVideo ? mergedQueue.length : 0) + 1;
-                        addToast({ message: `"${video.title}" added to queue (position ${pos})`, type: "info", duration: 2000 });
-                      }}
-                      onAddToPlaylist={() => {
-                        addToast({ message: `"${video.title}" added to playlist (coming soon)`, type: "info", duration: 2000 });
-                      }}
                     />
                   ))}
                 </div>

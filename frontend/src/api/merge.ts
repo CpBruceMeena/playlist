@@ -15,3 +15,7 @@ export async function listMergedVideos(): Promise<MergedVideo[]> {
   // apiClient.get already extracts .data from the response envelope
   return apiClient.get<MergedVideo[]>("/merged");
 }
+
+export async function deleteMergedVideo(id: string): Promise<void> {
+  await apiClient.delete(`/merged/${id}`);
+}

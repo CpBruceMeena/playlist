@@ -69,7 +69,7 @@ func (PlaylistVideo) TableName() string {
 
 // Singer represents a curated singer/artist
 type Singer struct {
-	ID               uint   `gorm:"primaryKey" json:"id,string"`
+	ID               uint   `gorm:"primaryKey;autoIncrement" json:"id"`
 	Name             string `gorm:"type:varchar(255);not null;index:idx_singers_name" json:"name"`
 	Genre            string `gorm:"type:varchar(100);not null;index:idx_singers_genre" json:"genre"`
 	ThumbnailURL     string `gorm:"type:varchar(500);column:thumbnail_url" json:"thumbnailUrl"`
