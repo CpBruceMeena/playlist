@@ -8,7 +8,6 @@ import {
   useSavedPlaylistsStore,
   type SavedPlaylist,
 } from "../stores/savedPlaylistsStore";
-import { useToastStore } from "../stores/toastStore";
 
 function formatDate(iso: string): string {
   try {
@@ -171,7 +170,6 @@ const PlaylistTile = memo(function PlaylistTile({
 
 export function MyPlaylistsPage() {
   const navigate = useNavigate();
-  const addToast = useToastStore((s) => s.addToast);
   const {
     playlists,
     isLoaded,
@@ -210,10 +208,7 @@ export function MyPlaylistsPage() {
   };
 
   const handleRenamePlaylist = (id: string, newName: string) => {
-    const success = renamePlaylist(id, newName);
-    if (success) {
-      addToast({ message: `Renamed to "${newName}"`, type: "success", duration: 2000 });
-    }
+    renamePlaylist(id, newName);
   };
 
   if (!isLoaded) {

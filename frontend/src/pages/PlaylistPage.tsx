@@ -10,7 +10,6 @@ import { MergeOrderDialog } from "../components/processing/MergeOrderDialog";
 import { usePlaylistStore } from "../stores/playlistStore";
 import { useSavedSongsStore } from "../stores/savedSongsStore";
 import { useSavedPlaylistsStore } from "../stores/savedPlaylistsStore";
-import { useToastStore } from "../stores/toastStore";
 import { useFilterStore } from "../stores/filterStore";
 import { useSingerStore, hasSingerAttribution } from "../stores/singerStore";
 import { savePlaylistToBackend } from "../api/playlists";
@@ -143,7 +142,6 @@ export function PlaylistPage() {
   const query = useFilterStore((s) => s.query);
   const savePlaylist = useSavedPlaylistsStore((s) => s.savePlaylist);
   const addSongsToMySongs = useSavedSongsStore((s) => s.addSongs);
-  const addToast = useToastStore((s) => s.addToast);
   const singerNames = useSingerStore((s) => s.singerNames);
   const clearGenerated = useSingerStore((s) => s.clearGenerated);
 
@@ -230,22 +228,15 @@ export function PlaylistPage() {
 
     try {
       const filters = useFilterStore.getState().getFilterPayload();
-      let savedToBackend = false;
 
       // Save to backend first (authoritative save)
       try {
-        const backendResult = await savePlaylistToBackend(
+        await savePlaylistToBackend(
           playlistName.trim(),
           query,
           filters,
           activeYouTubeVideos
         );
-        savedToBackend = true;
-        addToast({
-          message: `Saved "${backendResult.name}" (${backendResult.videoCount} videos)`,
-          type: "success",
-          duration: 3000,
-        });
       } catch (backendErr) {
         const backendMsg =
           backendErr instanceof Error ? backendErr.message : "Backend save failed";
@@ -253,34 +244,23 @@ export function PlaylistPage() {
         // Check for duplicate from backend
         if (backendMsg.includes("already exists")) {
           setSaveError(backendMsg);
-          addToast({ message: backendMsg, type: "error", duration: 4000 });
           setSaving(false);
           return;
         }
-
-        const isNetworkError = backendMsg.includes("Failed to fetch") || backendMsg.includes("NetworkError") || backendMsg.includes("Network request failed");
-        addToast({
-          message: isNetworkError ? "Server not running — saved to browser storage" : "Backend save failed, saving locally",
-          type: "warning",
-          duration: 4000,
-        });
       }
 
-      // Only save locally as offline backup if backend save didn't happen
-      if (!savedToBackend) {
-        const localResult = savePlaylist(
-          playlistName.trim(),
-          query,
-          filters,
-          activeYouTubeVideos
-        );
+      // Save locally
+      const localResult = savePlaylist(
+        playlistName.trim(),
+        query,
+        filters,
+        activeYouTubeVideos
+      );
 
-        if (typeof localResult === "object" && localResult !== null && "error" in localResult) {
-          setSaveError(localResult.error as string);
-          addToast({ message: localResult.error as string, type: "error", duration: 4000 });
-          setSaving(false);
-          return;
-        }
+      if (typeof localResult === "object" && localResult !== null && "error" in localResult) {
+        setSaveError(localResult.error as string);
+        setSaving(false);
+        return;
       }
 
       setShowSaveDialog(false);
@@ -288,11 +268,10 @@ export function PlaylistPage() {
       const msg =
         err instanceof Error ? err.message : "Failed to save playlist";
       setSaveError(msg);
-      addToast({ message: msg, type: "error", duration: 4000 });
     } finally {
       setSaving(false);
     }
-  }, [playlistName, query, activeVideos, savePlaylist, addToast]);
+  }, [playlistName, query, activeVideos, savePlaylist]);
 
   // ── Add selected to My Songs ──
 
@@ -300,17 +279,11 @@ export function PlaylistPage() {
     if (selectedVideos.length === 0) return;
     const result = addSongsToMySongs(selectedVideos);
     if ("error" in result) {
-      addToast({ message: result.error as string, type: "error", duration: 4000 });
       return;
     }
     setIsSelecting(false);
     setSelectedIds([]);
-    addToast({
-      message: `Added ${result.count} song${result.count !== 1 ? "s" : ""} to My Songs`,
-      type: "success",
-      duration: 3000,
-    });
-  }, [selectedVideos, addSongsToMySongs, addToast]);
+  },    [selectedVideos, addSongsToMySongs]);
 
   // ── Save selected as Playlist ──
 
@@ -319,21 +292,14 @@ export function PlaylistPage() {
       const result = savePlaylist(name, "", EMPTY_FILTERS, videosToSave);
 
       if ("error" in result) {
-        addToast({ message: result.error as string, type: "error", duration: 4000 });
         return false;
       }
 
       setIsSelecting(false);
       setSelectedIds([]);
-      addToast({
-        message: `Saved "${name}" (${videosToSave.length} songs)`,
-        type: "success",
-        duration: 4000,
-        action: { label: "View", onClick: () => navigate("/my-playlists") },
-      });
       return true;
     },
-    [savePlaylist, addToast, navigate],
+    [savePlaylist, navigate],
   );
 
 
@@ -351,23 +317,21 @@ export function PlaylistPage() {
         .filter((v): v is YouTubeVideo => v !== undefined);
 
       if (orderedVideos.length === 0) {
-        addToast({ message: "No songs to save", type: "error", duration: 3000 });
         return;
       }
 
       const name = playlistName.trim() || `Playlist (${orderedVideos.length} songs)`;
       doSavePlaylist(name, orderedVideos);
     },
-    [selectedVideos, addToast, doSavePlaylist],
+    [selectedVideos, doSavePlaylist],
   );  // ── Merge selected ──
 
   const handleMergeSelected = useCallback(() => {
     if (selectedVideos.length < 2) {
-      addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
       return;
     }
     setShowMergeDialog(true);
-  }, [selectedVideos, addToast]);
+  }, [selectedVideos]);
 
   const handleMergeDialogConfirm = useCallback(
     (ordered: { id: string; videoId: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[], mergeName: string) => {
@@ -378,7 +342,6 @@ export function PlaylistPage() {
         .filter((v): v is YouTubeVideo => v !== undefined);
 
       if (orderedVideos.length < 2) {
-        addToast({ message: "Select at least 2 songs to merge", type: "error", duration: 3000 });
         return;
       }
 
@@ -390,7 +353,7 @@ export function PlaylistPage() {
       setIsSelecting(false);
       setSelectedIds([]);
     },
-    [selectedVideos, addToast, navigate],
+    [selectedVideos, navigate],
   );
 
   const isMultiSinger = hasSingerAttribution(videos as unknown as { singerName?: string }[]);
@@ -418,27 +381,32 @@ export function PlaylistPage() {
     <SidebarLayout
       actions={
         <div className="flex items-center gap-1.5">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => {
               clearGenerated();
               navigate("/");
             }}
-            className="mr-1 flex h-8 w-8 items-center justify-center rounded-lg text-neutral-500 transition-all duration-200 hover:bg-white/5 hover:text-white"
+            icon={
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            }
             aria-label="Go back"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <button
+          />
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleSave}
-            className="flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-neutral-300 transition-all duration-200 hover:bg-white/10 hover:text-white"
+            icon={
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg>
+            }
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-            </svg>
-            <span className="hidden sm:inline">Save</span>
-          </button>
+            Save
+          </Button>
         </div>
       }
     >
@@ -488,54 +456,42 @@ export function PlaylistPage() {
                 </button>
                 {selectedIds.length > 0 && (
                   <>
-                    {/* Add to My Songs */}
-                    <button
-                      onClick={handleAddToMySongs}
-                      className="rounded-lg bg-emerald-700 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-600"
-                    >
+                    <Button variant="secondary" size="sm" onClick={handleAddToMySongs}>
                       Add to My Songs
-                    </button>
-
-                    {/* Save as Playlist — opens dialog with name input + optional reorder */}
-                    <button
-                      onClick={handleSaveAsPlaylist}
-                      className="rounded-lg bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors hover:bg-neutral-700"
-                    >
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={handleSaveAsPlaylist}>
                       Save as Playlist
-                    </button>
-
-                    {/* Merge — opens dialog with name input + optional reorder */}
-                    <button
-                      onClick={handleMergeSelected}
-                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
-                    >
+                    </Button>
+                    <Button variant="primary" size="sm" onClick={handleMergeSelected}>
                       Merge ({selectedIds.length})
-                    </button>
+                    </Button>
                   </>
                 )}
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     setIsSelecting(false);
                     setSelectedIds([]);
                   }}
-                  className="rounded-lg bg-neutral-800 px-2.5 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:text-white"
                 >
                   Cancel
-                </button>
+                </Button>
               </>
             ) : (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setIsSelecting(true)}
-                className="rounded-lg bg-neutral-800 px-2.5 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:text-white"
-              >
-                <span className="flex items-center gap-1">
+                icon={
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="9 11 12 14 22 4" />
                     <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                   </svg>
-                  Select
-                </span>
-              </button>
+                }
+              >
+                Select
+              </Button>
             )}
           </div>
         </div>
