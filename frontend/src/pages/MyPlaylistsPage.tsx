@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, memo } from "react";
+import { useEffect, useState, useRef, memo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarLayout } from "../components/layout/Sidebar";
 import { EmptyState } from "../components/feedback/EmptyState";
@@ -8,6 +8,7 @@ import {
   useSavedPlaylistsStore,
   type SavedPlaylist,
 } from "../stores/savedPlaylistsStore";
+import { startDownload } from "../api/downloads";
 
 function formatDate(iso: string): string {
   try {
@@ -27,11 +28,13 @@ const PlaylistTile = memo(function PlaylistTile({
   onPlay,
   onDelete,
   onRename,
+  onDownload,
 }: {
   playlist: SavedPlaylist;
   onPlay: () => void;
   onDelete: () => void;
   onRename: (newName: string) => void;
+  onDownload?: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(playlist.name);
@@ -105,6 +108,22 @@ const PlaylistTile = memo(function PlaylistTile({
         <div className="absolute bottom-1.5 right-1.5 rounded-md bg-black/80 px-1.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm">
           {playlist.videoCount}
         </div>
+
+        {/* Download button — visible on hover */}
+        {onDownload && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDownload(); }}
+            className="absolute bottom-1.5 left-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-md bg-black/80 text-neutral-300 backdrop-blur-sm transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-white/10 hover:text-white"
+            aria-label={`Download ${playlist.name}`}
+            title="Download playlist"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </button>
+        )}
 
         {/* Delete button — always visible */}
         <button
@@ -185,6 +204,16 @@ export function MyPlaylistsPage() {
     title: string;
   } | null>(null);
 
+  // Download-all confirmation state
+  const [downloadAllConfirm, setDownloadAllConfirm] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [downloadAllError, setDownloadAllError] = useState<string | null>(null);
+
+  // Per-playlist download confirmation state
+  const [downloadPlaylistConfirm, setDownloadPlaylistConfirm] = useState<SavedPlaylist | null>(null);
+  const [downloadingPlaylist, setDownloadingPlaylist] = useState(false);
+  const [downloadPlaylistError, setDownloadPlaylistError] = useState<string | null>(null);
+
   useEffect(() => {
     loadFromStorage();
   }, [loadFromStorage]);
@@ -211,6 +240,52 @@ export function MyPlaylistsPage() {
     renamePlaylist(id, newName);
   };
 
+  const handleDownloadAllClick = () => {
+    if (playlists.length === 0) return;
+    setDownloadAllError(null);
+    setDownloadAllConfirm(true);
+  };
+
+  const handleDownloadAllConfirm = useCallback(async () => {
+    setDownloadAllConfirm(false);
+    const urls = playlists.flatMap(p => p.videos.map(v => `https://www.youtube.com/watch?v=${v.id}`));
+    if (urls.length === 0) return;
+    setDownloadingAll(true);
+    setDownloadAllError(null);
+    try {
+      for (const url of urls) {
+        await startDownload(url);
+      }
+    } catch (err) {
+      setDownloadAllError(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloadingAll(false);
+    }
+  }, [playlists]);
+
+  const handleDownloadPlaylistClick = (playlist: SavedPlaylist) => {
+    if (playlist.videos.length === 0) return;
+    setDownloadPlaylistError(null);
+    setDownloadPlaylistConfirm(playlist);
+  };
+
+  const handleDownloadPlaylistConfirm = useCallback(async () => {
+    if (!downloadPlaylistConfirm) return;
+    const urls = downloadPlaylistConfirm.videos.map(v => `https://www.youtube.com/watch?v=${v.id}`);
+    setDownloadingPlaylist(true);
+    setDownloadPlaylistError(null);
+    try {
+      for (const url of urls) {
+        await startDownload(url);
+      }
+      setDownloadPlaylistConfirm(null);
+    } catch (err) {
+      setDownloadPlaylistError(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloadingPlaylist(false);
+    }
+  }, [downloadPlaylistConfirm]);
+
   if (!isLoaded) {
     return (
       <SidebarLayout>
@@ -235,6 +310,19 @@ export function MyPlaylistsPage() {
                 : "Playlists you save will appear here"}
             </p>
           </div>
+          {playlists.length > 0 && (
+            <button
+              onClick={handleDownloadAllClick}
+              className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black transition-all hover:bg-neutral-200 active:scale-95"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Download All
+            </button>
+          )}
         </div>
 
         {playlists.length === 0 ? (
@@ -247,15 +335,16 @@ export function MyPlaylistsPage() {
           />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {playlists.map((playlist) => (
-              <PlaylistTile
-                key={playlist.id}
-                playlist={playlist}
-                onPlay={() => handlePlayPlaylist(playlist)}
-                onDelete={() => handleDeletePlaylist(playlist.id)}
-                onRename={(newName) => handleRenamePlaylist(playlist.id, newName)}
-              />
-            ))}
+{playlists.map((playlist) => (
+               <PlaylistTile
+                 key={playlist.id}
+                 playlist={playlist}
+                 onPlay={() => handlePlayPlaylist(playlist)}
+                 onDelete={() => handleDeletePlaylist(playlist.id)}
+                 onRename={(newName) => handleRenamePlaylist(playlist.id, newName)}
+                 onDownload={() => handleDownloadPlaylistClick(playlist)}
+               />
+             ))}
           </div>
         )}
 
@@ -267,6 +356,72 @@ export function MyPlaylistsPage() {
             title={playerDialog.title}
             onClose={() => setPlayerDialog(null)}
           />
+        )}
+
+        {/* Download-all confirmation dialog */}
+        {downloadAllConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl">
+              <h2 className="mb-1 text-lg font-semibold text-white">Download all playlists?</h2>
+              <p className="mb-4 text-sm text-neutral-400">This will download every video from all saved playlists to the server.</p>
+              {downloadAllError && (
+                <div className="mb-3 rounded-lg border border-red-500/30 bg-red-950/20 px-4 py-2.5 text-xs text-red-300">
+                  {downloadAllError}
+                  <button type="button" onClick={() => setDownloadAllError(null)} className="ml-3 text-red-400 underline">
+                    Dismiss
+                  </button>
+                </div>
+              )}
+              <div className="mb-5 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setDownloadAllConfirm(false)}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-400 transition-colors hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDownloadAllConfirm}
+                  disabled={downloadingAll}
+                  className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition-all hover:bg-neutral-200 active:scale-95 disabled:opacity-40"
+                >
+                  {downloadingAll ? "Downloading..." : "Download All"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Per-playlist download confirmation dialog */}
+        {downloadPlaylistConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl">
+              <h2 className="mb-1 text-lg font-semibold text-white">Download playlist?</h2>
+              <p className="mb-4 text-sm text-neutral-400">Download {downloadPlaylistConfirm.videoCount} videos from "{downloadPlaylistConfirm.name}" to the server. You can then save them individually from the Downloads page.</p>
+              {downloadPlaylistError && (
+                <div className="mb-3 rounded-lg border border-red-500/30 bg-red-950/20 px-4 py-2.5 text-xs text-red-300">
+                  {downloadPlaylistError}
+                  <button type="button" onClick={() => setDownloadPlaylistError(null)} className="ml-3 text-red-400 underline">
+                    Dismiss
+                  </button>
+                </div>
+              )}
+              <div className="mb-5 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setDownloadPlaylistConfirm(null)}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-400 transition-colors hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDownloadPlaylistConfirm}
+                  disabled={downloadingPlaylist}
+                  className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition-all hover:bg-neutral-200 active:scale-95 disabled:opacity-40"
+                >
+                  {downloadingPlaylist ? "Downloading..." : "Download"}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </SidebarLayout>

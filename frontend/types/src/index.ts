@@ -188,6 +188,26 @@ export interface MergedVideo {
 export interface MergeResponse extends MergedVideo {}
 
 
+// ─── Download Types ─────────────────────────────────────────────
+export interface DownloadRequest {
+  url: string;
+}
+
+export interface DownloadResponse {
+  id: string;
+  filename: string;
+  title: string;
+  thumbnailUrl: string;
+  duration: number;
+  fileSize: number;
+  createdAt: string;
+  downloadUrl: string;
+}
+
+export interface DownloadItem extends DownloadResponse {
+  sourceUrl?: string;
+}
+
 
 // ─── Player Types ──────────────────────────────────────────────
 export type PlayerState = "unstarted" | "playing" | "paused" | "ended" | "buffering" | "cued";

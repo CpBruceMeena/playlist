@@ -1,4 +1,4 @@
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, memo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarLayout } from "../components/layout/Sidebar";
 import { EmptyState } from "../components/feedback/EmptyState";
@@ -6,6 +6,7 @@ import { Spinner } from "../components/ui/Spinner";
 import { VideoPlayerModal } from "../components/player/VideoPlayerModal";
 import { useMergedVideosStore, type MergeJob } from "../stores/mergedVideosStore";
 import { listMergedVideos, deleteMergedVideo } from "../api/merge";
+import { startDownload } from "../api/downloads";
 import type { MergedVideo } from "@playlist/types";
 
 function formatDuration(seconds: number): string {
@@ -32,10 +33,12 @@ const MergedVideoTile = memo(function MergedVideoTile({
   video,
   onPlay,
   onDelete,
+  onDownload,
 }: {
   video: MergedVideo;
   onPlay: () => void;
   onDelete: () => void;
+  onDownload?: () => void;
 }) {
   const thumbnailSrc = video.thumbnailUrl ||
     (video.songs[0]?.id ? `https://i.ytimg.com/vi/${video.songs[0].id}/hqdefault.jpg` : null);
@@ -80,6 +83,25 @@ const MergedVideoTile = memo(function MergedVideoTile({
         <div className="absolute bottom-1.5 right-1.5 rounded-md bg-black/80 px-1.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm">
           {formatDuration(video.duration)}
         </div>
+
+        {/* Download button — visible on hover */}
+        {onDownload && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDownload();
+            }}
+            className="absolute bottom-1.5 left-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-md bg-black/80 text-neutral-300 backdrop-blur-sm transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-white/10 hover:text-white"
+            aria-label={`Download ${video.title}`}
+            title="Download"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </button>
+        )}
 
         {/* Hover play overlay */}
         <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-200 group-hover:bg-black/30">
@@ -220,6 +242,32 @@ export function MergedVideosPage() {
     }
   };
 
+  // Download confirmation state
+  const [downloadVideo, setDownloadVideo] = useState<MergedVideo | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const handleDownloadMergedVideo = useCallback((video: MergedVideo) => {
+    setDownloadVideo(video);
+    setDownloadError(null);
+  }, []);
+
+  const handleDownloadConfirm = useCallback(async () => {
+    if (!downloadVideo) return;
+    const firstSongId = downloadVideo.songs[0]?.id;
+    if (!firstSongId) return;
+    const url = `https://www.youtube.com/watch?v=${firstSongId}`;
+    setDownloading(true);
+    try {
+      await startDownload(url);
+      setDownloadVideo(null);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  }, [downloadVideo]);
+
   const hasContent = mergedVideos.length > 0 || mergeJobs.length > 0;
 
   return (
@@ -254,15 +302,6 @@ export function MergedVideosPage() {
           />
         ) : (
           <>
-            {/* Video player modal */}
-            {playerVideo && (
-              <VideoPlayerModal
-                videoUrl={playerVideo.videoUrl}
-                title={playerVideo.title}
-                onClose={() => setPlayerVideo(null)}
-              />
-            )}
-
             {/* In-progress merges */}
             {mergeJobs.length > 0 && (
               <div className="mb-6 flex flex-col gap-3">
@@ -286,6 +325,7 @@ export function MergedVideosPage() {
                       video={video}
                       onPlay={() => handlePlayMergedVideo(video)}
                       onDelete={() => handleDeleteMergedVideo(video)}
+                      onDownload={() => handleDownloadMergedVideo(video)}
                     />
                   ))}
                 </div>
@@ -294,6 +334,50 @@ export function MergedVideosPage() {
           </>
         )}
       </main>
+
+      {/* Video player modal */}
+      {playerVideo && (
+        <VideoPlayerModal
+          videoUrl={playerVideo.videoUrl}
+          title={playerVideo.title}
+          onClose={() => setPlayerVideo(null)}
+        />
+      )}
+
+      {/* Download confirmation dialog */}
+      {downloadVideo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onKeyDown={(e) => e.key === "Escape" && setDownloadVideo(null)}>
+          <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl animate-in">
+            <h2 className="mb-1 text-lg font-semibold text-white">Download this merged video?</h2>
+            <p className="mb-4 text-sm text-neutral-400">
+              "{downloadVideo.title}" will be downloaded to the server. You can then save it to your computer from the Downloads page.
+            </p>
+            {downloadError && (
+              <div className="mb-3 rounded-lg border border-red-500/30 bg-red-950/20 px-4 py-2.5 text-xs text-red-300">
+                {downloadError}
+                <button type="button" onClick={() => setDownloadError(null)} className="ml-3 text-red-400 underline">
+                  Dismiss
+                </button>
+              </div>
+            )}
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setDownloadVideo(null)}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-400 transition-colors hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDownloadConfirm}
+                disabled={downloading}
+                className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition-all hover:bg-neutral-200 active:scale-95 disabled:opacity-40"
+              >
+                {downloading ? "Downloading..." : "Download"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SidebarLayout>
   );
 }

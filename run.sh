@@ -105,10 +105,14 @@ check_prerequisites() {
 
 # ─── Install dependencies if missing ────────────────────────────
 check_and_install_deps() {
-  if ! python3 -c "import flask" 2>/dev/null; then
-    echo -e "  ${YELLOW}⚠ Flask not found. Installing flask...${NC}"
-    pip3 install -q flask
-    echo -e "  ${GREEN}✓${NC} Flask installed"
+  if [ -d "$PROJECT_DIR/.venv" ]; then
+    echo -e "  ${GREEN}✓${NC} Project venv found"
+  else
+    echo -e "  ${YELLOW}⚠ Project venv not found. Creating one...${NC}"
+    python3 -m venv "$PROJECT_DIR/.venv"
+    source "$PROJECT_DIR/.venv/bin/activate"
+    pip install -q flask
+    echo -e "  ${GREEN}✓${NC} venv created and flask installed"
   fi
 
   if [ ! -d "$PROJECT_DIR/frontend/node_modules" ]; then
@@ -193,6 +197,9 @@ cmd_start() {
 
   # ─── Start Python merge server ─────────────────────────────
   echo -e "${CYAN}🚀 Starting Python merge server (port $MERGE_SERVER_PORT)...${NC}"
+  if [ -d "$PROJECT_DIR/.venv" ]; then
+    source "$PROJECT_DIR/.venv/bin/activate"
+  fi
   python3 "$PROJECT_DIR/scripts/merge_server.py" &
   MERGE_PID=$!
   echo "$MERGE_PID" > "$PID_DIR/merge_server.pid"

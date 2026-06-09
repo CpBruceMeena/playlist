@@ -195,6 +195,25 @@ type RenamePlaylistRequest struct {
 	Name string `json:"name" binding:"required,min=1,max=100"`
 }
 
+// --- Download Types ---
+
+// DownloadRequest is the request for POST /api/v1/downloads
+type DownloadRequest struct {
+	URL string `json:"url" binding:"required,url"`
+}
+
+// DownloadResponse is the response for POST /api/v1/downloads
+type DownloadResponse struct {
+	ID          string `json:"id"`
+	Filename    string `json:"filename"`
+	Title       string `json:"title"`
+	ThumbnailURL string `json:"thumbnailUrl"`
+	Duration    int    `json:"duration"`
+	FileSize    int64  `json:"fileSize"`
+	CreatedAt   string `json:"createdAt"`
+	DownloadURL string `json:"downloadUrl"`
+}
+
 // --- Saved Songs ---
 
 type SavedSongRequest struct {

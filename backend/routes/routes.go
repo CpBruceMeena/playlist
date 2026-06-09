@@ -21,6 +21,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient, ca
 	playlistHandler := handlers.NewPlaylistHandler(db)
 	songsHandler := handlers.NewSongsHandler()
 	mergeHandler := handlers.NewMergeHandler()
+	downloadHandler := handlers.NewDownloadHandler()
 
 	// Health check (outside v1 for infrastructure probes)
 	r.GET("/api/health", healthHandler.Check)
@@ -53,6 +54,12 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient, ca
 		v1.GET("/merged", mergeHandler.ListMergedVideos)
 		v1.DELETE("/merged/:id", mergeHandler.DeleteMergedVideo)
 		v1.GET("/merged/:filename", mergeHandler.ServeMergedFile)
+
+		// Video download (proxies to Python merge server on port 5002)
+		v1.POST("/downloads", downloadHandler.StartDownload)
+		v1.GET("/downloads", downloadHandler.ListDownloads)
+		v1.DELETE("/downloads/:id", downloadHandler.DeleteDownload)
+		v1.GET("/downloads/:filename", downloadHandler.ServeDownloadFile)
 
 	}
 }
