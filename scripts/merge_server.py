@@ -37,9 +37,16 @@ app = Flask(__name__)
 MERGED_DIR = Path(__file__).resolve().parent.parent / "merged"
 MERGED_DIR.mkdir(exist_ok=True)
 
+# Directory for downloaded single videos
+DOWNLOADS_DIR = Path(__file__).resolve().parent.parent / "downloads"
+DOWNLOADS_DIR.mkdir(exist_ok=True)
+
 # Metadata directory (sidecar JSON files)
 METADATA_DIR = MERGED_DIR / ".meta"
 METADATA_DIR.mkdir(exist_ok=True)
+
+DOWNLOAD_META_DIR = DOWNLOADS_DIR / ".meta"
+DOWNLOAD_META_DIR.mkdir(exist_ok=True)
 
 
 def sanitize_filename(name: str) -> str:
@@ -317,6 +324,175 @@ def serve_merged(filename):
     # If filename is a path, extract just the filename
     safe_name = Path(filename).name
     return send_from_directory(str(MERGED_DIR), safe_name, as_attachment=False)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Download Endpoints — single video downloads
+# ═══════════════════════════════════════════════════════════════
+
+import re as _re
+
+
+def _extract_video_id(url: str) -> str | None:
+    """Try to extract YouTube/TikTok/Instagram video ID from URL."""
+    patterns = [
+        _re.compile(r"(?:youtube\.com/watch\?.*v=)([a-zA-Z0-9_-]{11})"),
+        _re.compile(r"(?:youtu\.be/)([a-zA-Z0-9_-]{11})"),
+        _re.compile(r"(?:youtube\.com/embed/)([a-zA-Z0-9_-]{11})"),
+        _re.compile(r"(?:youtube\.com/shorts/)([a-zA-Z0-9_-]{11})"),
+        _re.compile(r"(?:tiktok\.com/@[\w.-]+/video/)(\d+)"),
+        _re.compile(r"(?:vm\.tiktok\.com/)(\w+)"),
+        _re.compile(r"(?:instagram\.com/(?:reel|p|tv)/)([\w-]+)"),
+    ]
+    for pattern in patterns:
+        m = pattern.search(url)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _download_single_video(url: str) -> dict:
+    """Download a single video using yt-dlp and return metadata."""
+    job_id = uuid.uuid4().hex[:12]
+
+    # Fetch metadata first
+    info_cmd = [
+        "yt-dlp", "--dump-json", "--no-playlist", url,
+    ]
+    info_result = subprocess.run(info_cmd, capture_output=True, text=True, timeout=60)
+    if info_result.returncode != 0:
+        raise RuntimeError(f"Failed to fetch video info: {info_result.stderr[:300]}")
+
+    info = json.loads(info_result.stdout.strip().split("\n")[0])
+    title = info.get("title", "Untitled")
+    duration = info.get("duration", 0)
+    ext = info.get("ext", "mp4")
+
+    safe_name = re.sub(r"[^\w\s-]", "", title)
+    safe_name = re.sub(r"\s+", "_", safe_name).strip(" _-")[:60] or "download"
+    output_filename = f"{safe_name}_{job_id}.{ext}"
+    output_path = DOWNLOADS_DIR / output_filename
+
+    download_cmd = [
+        "yt-dlp",
+        "-f", "best[height<=1080]/best",
+        "-o", str(output_path),
+        "--no-playlist",
+        "--quiet",
+        "--no-warnings",
+        url,
+    ]
+    result = subprocess.run(download_cmd, capture_output=True, text=True, timeout=300)
+    if result.returncode != 0:
+        raise RuntimeError(f"Download failed: {result.stderr[:300]}")
+
+    if not output_path.exists():
+        raise RuntimeError("Download completed but file not found")
+
+    thumbnail_url = (
+        info.get("thumbnail") or
+        (f"https://i.ytimg.com/vi/{info.get('id')}/hqdefault.jpg" if info.get("extractor") == "youtube" else "")
+    )
+
+    metadata = {
+        "id": job_id,
+        "filename": output_filename,
+        "title": title,
+        "thumbnailUrl": thumbnail_url,
+        "duration": duration,
+        "sourceUrl": url,
+        "fileSize": output_path.stat().st_size,
+        "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "downloadUrl": f"/api/v1/downloads/{output_filename}",
+    }
+
+    meta_path = DOWNLOAD_META_DIR / f"{job_id}.json"
+    with open(meta_path, "w") as f:
+        json.dump(metadata, f)
+
+    return metadata
+
+
+@app.route("/api/downloads", methods=["POST"])
+def start_download():
+    """Start a single video download from YouTube/TikTok/Instagram URL."""
+    data = request.get_json(silent=True)
+    if not data or "url" not in data:
+        return jsonify({"error": {"message": "Missing 'url' field", "code": "INVALID_REQUEST"}}), 400
+
+    url = data["url"].strip()
+    if not url:
+        return jsonify({"error": {"message": "URL is required", "code": "INVALID_REQUEST"}}), 400
+
+    job_id_log = uuid.uuid4().hex[:8]
+    logger.info(f"[dl {job_id_log}] Starting download: {url}")
+
+    try:
+        result = _download_single_video(url)
+        logger.info(f"[dl {job_id_log}] Download complete: {result['filename']}")
+        return jsonify({"data": result})
+    except RuntimeError as e:
+        logger.error(f"[dl {job_id_log}] Download failed: {e}")
+        return jsonify({"error": {"message": str(e), "code": "DOWNLOAD_FAILED"}}), 500
+    except FileNotFoundError as e:
+        error_msg = f"Required tool not found: {e}"
+        logger.error(f"[dl {job_id_log}] {error_msg}")
+        return jsonify({"error": {"message": error_msg, "code": "MISSING_DEPENDENCY"}}), 500
+    except subprocess.TimeoutExpired:
+        logger.error(f"[dl {job_id_log}] Download timed out")
+        return jsonify({"error": {"message": "Download timed out after 5 minutes", "code": "DOWNLOAD_TIMEOUT"}}), 500
+    except json.JSONDecodeError as e:
+        logger.error(f"[dl {job_id_log}] Failed to parse video info: {e}")
+        return jsonify({"error": {"message": "Could not parse video information", "code": "PARSE_ERROR"}}), 500
+    except Exception as e:
+        import traceback
+        logger.error(f"[dl {job_id_log}] Unexpected error: {e}\n{traceback.format_exc()}")
+        return jsonify({"error": {"message": f"Internal server error: {str(e)}", "code": "INTERNAL_ERROR"}}), 500
+
+
+@app.route("/api/downloads", methods=["GET"])
+def list_downloads():
+    """List all downloaded videos with their metadata."""
+    downloads_list = []
+    if DOWNLOAD_META_DIR.exists():
+        for meta_file in sorted(DOWNLOAD_META_DIR.glob("*.json"), key=os.path.getmtime, reverse=True):
+            try:
+                with open(meta_file) as f:
+                    metadata = json.load(f)
+                    # Verify the actual file still exists
+                    if (DOWNLOADS_DIR / metadata["filename"]).exists():
+                        downloads_list.append(metadata)
+            except (json.JSONDecodeError, KeyError, OSError) as e:
+                logger.warning(f"Error reading download metadata {meta_file}: {e}")
+    return jsonify({"data": downloads_list})
+
+
+@app.route("/api/downloads/<id>", methods=["DELETE"])
+def delete_download(id):
+    """Delete a downloaded video by its ID (UUID)."""
+    meta_path = DOWNLOAD_META_DIR / f"{id}.json"
+    if not meta_path.exists():
+        return jsonify({"error": {"message": "Download not found", "code": "NOT_FOUND"}}), 404
+    try:
+        with open(meta_path) as f:
+            metadata = json.load(f)
+        filename = metadata.get("filename", "")
+        file_path = DOWNLOADS_DIR / filename
+        if file_path.exists():
+            file_path.unlink()
+        meta_path.unlink()
+        logger.info(f"Deleted download: {filename} (id={id})")
+        return jsonify({"data": {"deleted": True}})
+    except (json.JSONDecodeError, OSError) as e:
+        logger.error(f"Error deleting download {id}: {e}")
+        return jsonify({"error": {"message": "Failed to delete", "code": "DELETE_FAILED"}}), 500
+
+
+@app.route("/api/downloads/<filename>")
+def serve_download(filename):
+    """Serve downloaded video files as a download attachment."""
+    safe_name = Path(filename).name
+    return send_from_directory(str(DOWNLOADS_DIR), safe_name, as_attachment=True)
 
 
 @app.route("/api/health")

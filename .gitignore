@@ -52,3 +52,6 @@ video/
 # Logs
 *.log
 .pids/
+
+# Downloaded video files
+downloads/

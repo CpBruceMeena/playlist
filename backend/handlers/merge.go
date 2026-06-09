@@ -198,5 +198,8 @@ func (h *MergeHandler) ServeMergedFile(c *gin.Context) {
 		return
 	}
 
+	if c.Query("download") == "true" {
+		c.Header("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	}
 	c.File(filePath) // Serve for playback, not as attachment
 }

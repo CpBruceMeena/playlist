@@ -8,6 +8,7 @@ import { PlaylistPlayerDialog } from "../components/player/PlaylistPlayerDialog"
 import { MergeOrderDialog } from "../components/processing/MergeOrderDialog";
 import { useSavedSongsStore } from "../stores/savedSongsStore";
 import { useSavedPlaylistsStore } from "../stores/savedPlaylistsStore";
+import { startDownload } from "../api/downloads";
 import { startMerge } from "../api/mergeRunner";
 import type { SavedSong } from "@playlist/types";
 
@@ -82,6 +83,7 @@ const SongTile = memo(function SongTile({
   onToggleSelect,
   onPlay,
   onRemove,
+  onDownload,
 }: {
   song: SavedSong;
   isSelectable?: boolean;
@@ -89,6 +91,7 @@ const SongTile = memo(function SongTile({
   onToggleSelect?: () => void;
   onPlay: () => void;
   onRemove: () => void;
+  onDownload?: () => void;
 }) {
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-xl border bg-neutral-900/50 transition-all duration-200 hover:border-blue-500/40 hover:bg-neutral-900 hover:shadow-lg hover:shadow-blue-500/5">
@@ -107,6 +110,24 @@ const SongTile = memo(function SongTile({
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           loading="lazy"
         />
+        {/* Download button — visible on hover */}
+        {onDownload && !isSelectable && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDownload();
+            }}
+            className="absolute bottom-1.5 left-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-md bg-black/80 text-neutral-300 backdrop-blur-sm transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-white/10 hover:text-white"
+            aria-label={`Download ${song.title}`}
+            title="Download"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </button>
+        )}
         {/* Dark gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
@@ -248,6 +269,11 @@ export function MySongsPage() {
     [filteredSongs],
   );
 
+  // Download confirmation state (individual song)
+  const [downloadSong, setDownloadSong] = useState<SavedSong | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
   const selectedSongs = useMemo(
     () => {
       const songMap = new Map(songs.map((s) => [s.videoId, s]));
@@ -382,6 +408,25 @@ export function MySongsPage() {
     },
     [removeSong],
   );
+
+  const handleDownloadSong = useCallback((song: SavedSong) => {
+    setDownloadSong(song);
+    setDownloadError(null);
+  }, []);
+
+  const handleDownloadConfirm = useCallback(async () => {
+    if (!downloadSong) return;
+    const url = `https://www.youtube.com/watch?v=${downloadSong.videoId}`;
+    setDownloading(true);
+    try {
+      await startDownload(url);
+      setDownloadSong(null);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  }, [downloadSong]);
 
   const handlePlaySong = (song: SavedSong) => {
     setPlayerDialog({
@@ -563,6 +608,9 @@ export function MySongsPage() {
                         if (isSelecting) return;
                         removeSong(song.id);
                       }}
+                      onDownload={() => {
+                        if (!isSelecting) handleDownloadSong(song);
+                      }}
                     />
                   ))}
                 </div>
@@ -583,7 +631,7 @@ export function MySongsPage() {
                     <span className="text-xs text-neutral-600">{ungrouped.length}</span>
                   </div>
                 )}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {ungrouped.map((song) => (
                     <SongTile
                       key={song.id}
@@ -597,6 +645,9 @@ export function MySongsPage() {
                       onRemove={() => {
                         if (isSelecting) return;
                         removeSong(song.id);
+                      }}
+                      onDownload={() => {
+                        if (!isSelecting) handleDownloadSong(song);
                       }}
                     />
                   ))}
@@ -642,7 +693,7 @@ export function MySongsPage() {
         />
       )}
 
-      {/* Playlist player dialog */}
+{/* Playlist player dialog */}
       {playerDialog && (
         <PlaylistPlayerDialog
           videos={playerDialog.videos}
@@ -652,6 +703,40 @@ export function MySongsPage() {
         />
       )}
 
+      {/* Download confirmation dialog */}
+      {downloadSong && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onKeyDown={(e) => e.key === "Escape" && setDownloadSong(null)}>
+          <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl animate-in">
+            <h2 className="mb-1 text-lg font-semibold text-white">Download this song?</h2>
+            <p className="mb-4 text-sm text-neutral-400">
+              "{downloadSong.title}" will be downloaded to the server. You can then save it to your computer from the Downloads page.
+            </p>
+            {downloadError && (
+              <div className="mb-3 rounded-lg border border-red-500/30 bg-red-950/20 px-4 py-2.5 text-xs text-red-300">
+                {downloadError}
+                <button type="button" onClick={() => setDownloadError(null)} className="ml-3 text-red-400 underline">
+                  Dismiss
+                </button>
+              </div>
+            )}
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setDownloadSong(null)}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-400 transition-colors hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDownloadConfirm}
+                disabled={downloading}
+                className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition-all hover:bg-neutral-200 active:scale-95 disabled:opacity-40"
+              >
+                {downloading ? "Downloading..." : "Download"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SidebarLayout>
   );
 }

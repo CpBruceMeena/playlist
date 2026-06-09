@@ -26,6 +26,11 @@ const NAV_ITEMS = [
     icon: "M22 11.08V12a10 10 0 1 1-5.93-9.14",
   },
   {
+    to: "/downloads",
+    label: "Downloads",
+    icon: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3",
+  },
+  {
     to: "/my-playlists",
     label: "Playlists",
     icon: "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3",
