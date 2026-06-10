@@ -13,6 +13,7 @@ import { useSavedPlaylistsStore } from "../stores/savedPlaylistsStore";
 import { useFilterStore } from "../stores/filterStore";
 import { useSingerStore, hasSingerAttribution } from "../stores/singerStore";
 import { startDownload } from "../api/downloads";
+import { triggerBrowserDownload } from "../api/browserDownload";
 import { savePlaylistToBackend } from "../api/playlists";
 import { startMerge } from "../api/mergeRunner";
 import type { YouTubeVideo, FilterCriteria } from "@playlist/types";
@@ -394,7 +395,10 @@ export function PlaylistPage() {
     const url = `https://www.youtube.com/watch?v=${downloadVideo.id}`;
     setDownloading(true);
     try {
-      await startDownload(url);
+      const result = await startDownload(url);
+      if (result?.downloadUrl) {
+        triggerBrowserDownload(result.downloadUrl);
+      }
       setDownloadVideo(null);
     } catch (err) {
       setDownloadError(err instanceof Error ? err.message : "Download failed");

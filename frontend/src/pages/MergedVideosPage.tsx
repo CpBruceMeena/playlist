@@ -7,6 +7,7 @@ import { VideoPlayerModal } from "../components/player/VideoPlayerModal";
 import { useMergedVideosStore, type MergeJob } from "../stores/mergedVideosStore";
 import { listMergedVideos, deleteMergedVideo } from "../api/merge";
 import { startDownload } from "../api/downloads";
+import { triggerBrowserDownload } from "../api/browserDownload";
 import type { MergedVideo } from "@playlist/types";
 
 function formatDuration(seconds: number): string {
@@ -259,7 +260,10 @@ export function MergedVideosPage() {
     const url = `https://www.youtube.com/watch?v=${firstSongId}`;
     setDownloading(true);
     try {
-      await startDownload(url);
+      const result = await startDownload(url);
+      if (result?.downloadUrl) {
+        triggerBrowserDownload(result.downloadUrl);
+      }
       setDownloadVideo(null);
     } catch (err) {
       setDownloadError(err instanceof Error ? err.message : "Download failed");

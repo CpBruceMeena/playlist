@@ -55,3 +55,6 @@ video/
 
 # Downloaded video files
 downloads/
+
+# Playwright MCP test artifacts
+.playwright-mcp/

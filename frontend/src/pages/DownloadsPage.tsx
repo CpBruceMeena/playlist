@@ -5,6 +5,7 @@ import { Spinner } from "../components/ui/Spinner";
 import { VideoPlayerModal } from "../components/player/VideoPlayerModal";
 import { useDownloadsStore, type DownloadJob } from "../stores/downloadsStore";
 import { startDownload, listDownloads, deleteDownload } from "../api/downloads";
+import { triggerBrowserDownload } from "../api/browserDownload";
 import type { DownloadItem } from "@playlist/types";
 
 function formatDuration(seconds: number): string {
@@ -43,6 +44,7 @@ const DownloadTile = ({
   onPlay: () => void;
   onDelete: () => void;
 }) => {
+  const [downloadingBrowser, setDownloadingBrowser] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const showFallback = !item.thumbnailUrl || imgFailed;
 
@@ -86,6 +88,28 @@ const DownloadTile = ({
             </svg>
           </div>
         </div>
+        {/* Save to device button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setDownloadingBrowser(true);
+            triggerBrowserDownload(item.downloadUrl, item.title);
+            setTimeout(() => setDownloadingBrowser(false), 500);
+          }}
+          className="absolute bottom-1.5 left-1.5 z-20 flex h-7 w-7 items-center justify-center rounded-lg bg-blue-900/50 text-blue-400 backdrop-blur-sm transition-all duration-200 hover:bg-blue-600 hover:text-white"
+          aria-label={`Save ${item.title} to device`}
+          title="Save to device"
+        >
+          {downloadingBrowser ? (
+            <Spinner size="sm" />
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          )}
+        </button>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -202,6 +226,9 @@ export function DownloadsPage() {
           const result = await startDownload(trimmed);
           useDownloadsStore.getState().removeJob(jobId);
           useDownloadsStore.getState().addDownload(result);
+          if (result?.downloadUrl) {
+            triggerBrowserDownload(result.downloadUrl);
+          }
         } catch (err) {
           const msg = err instanceof Error ? err.message : "Download failed";
           useDownloadsStore.getState().updateJob(jobId, {
