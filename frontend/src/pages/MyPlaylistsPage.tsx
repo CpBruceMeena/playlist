@@ -9,6 +9,7 @@ import {
   type SavedPlaylist,
 } from "../stores/savedPlaylistsStore";
 import { startDownload } from "../api/downloads";
+import { triggerBrowserDownload } from "../api/browserDownload";
 
 function formatDate(iso: string): string {
   try {
@@ -254,7 +255,10 @@ export function MyPlaylistsPage() {
     setDownloadAllError(null);
     try {
       for (const url of urls) {
-        await startDownload(url);
+        const result = await startDownload(url);
+        if (result?.downloadUrl) {
+          triggerBrowserDownload(result.downloadUrl);
+        }
       }
     } catch (err) {
       setDownloadAllError(err instanceof Error ? err.message : "Download failed");
@@ -276,7 +280,10 @@ export function MyPlaylistsPage() {
     setDownloadPlaylistError(null);
     try {
       for (const url of urls) {
-        await startDownload(url);
+        const result = await startDownload(url);
+        if (result?.downloadUrl) {
+          triggerBrowserDownload(result.downloadUrl);
+        }
       }
       setDownloadPlaylistConfirm(null);
     } catch (err) {

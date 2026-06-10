@@ -9,6 +9,7 @@ import { MergeOrderDialog } from "../components/processing/MergeOrderDialog";
 import { useSavedSongsStore } from "../stores/savedSongsStore";
 import { useSavedPlaylistsStore } from "../stores/savedPlaylistsStore";
 import { startDownload } from "../api/downloads";
+import { triggerBrowserDownload } from "../api/browserDownload";
 import { startMerge } from "../api/mergeRunner";
 import type { SavedSong } from "@playlist/types";
 
@@ -419,7 +420,10 @@ export function MySongsPage() {
     const url = `https://www.youtube.com/watch?v=${downloadSong.videoId}`;
     setDownloading(true);
     try {
-      await startDownload(url);
+      const result = await startDownload(url);
+      if (result?.downloadUrl) {
+        triggerBrowserDownload(result.downloadUrl);
+      }
       setDownloadSong(null);
     } catch (err) {
       setDownloadError(err instanceof Error ? err.message : "Download failed");
