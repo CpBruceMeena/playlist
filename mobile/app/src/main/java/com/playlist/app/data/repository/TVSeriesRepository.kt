@@ -45,4 +45,38 @@ class TVSeriesRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    suspend fun listSavedTVSeries(): Result<List<SavedTVSeriesDto>> {
+        return try {
+            val response = api.listSavedTVSeries()
+            if (response.isSuccessful && response.body()?.data != null) {
+                Result.success(response.body()!!.data!!)
+            } else {
+                Result.success(emptyList())
+            }
+        } catch (e: Exception) {
+            Result.success(emptyList())
+        }
+    }
+
+    suspend fun toggleSaveTVSeries(series: TVSeriesDto): Result<Unit> {
+        return try {
+            val request = ToggleSaveTVSeriesRequest(
+                seriesId = series.id,
+                seriesName = series.name,
+                channel = series.channel,
+                genre = series.genre,
+                thumbnailUrl = series.thumbnailUrl,
+                popularityScore = series.popularityScore
+            )
+            val response = api.toggleSaveTVSeries(request)
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Failed to toggle save: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

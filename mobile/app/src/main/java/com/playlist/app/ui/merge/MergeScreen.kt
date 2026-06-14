@@ -87,11 +87,29 @@ fun MergeScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "No merged videos yet.\nSelect songs from a playlist and merge them!",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = NeonColors.OnSurfaceVariant
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Filled.VideoLibrary,
+                            contentDescription = null,
+                            tint = NeonColors.OnSurfaceVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.size(56.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            text = "No merged videos yet",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = NeonColors.OnSurface
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "Select songs from a playlist and merge them into a single video",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = NeonColors.OnSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 48.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
                 }
             } else {
                 LazyColumn(

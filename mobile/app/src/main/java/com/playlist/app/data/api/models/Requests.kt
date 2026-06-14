@@ -116,6 +116,28 @@ data class RenamePlaylistRequest(
     @SerializedName("name") val name: String
 )
 
+// ─── Saved TV Series ──────────────────────────────────────────────
+
+data class SavedTVSeriesDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("seriesId") val seriesId: String,
+    @SerializedName("seriesName") val seriesName: String,
+    @SerializedName("channel") val channel: String? = null,
+    @SerializedName("genre") val genre: String? = null,
+    @SerializedName("thumbnailUrl") val thumbnailUrl: String? = null,
+    @SerializedName("popularityScore") val popularityScore: Int = 0,
+    @SerializedName("createdAt") val createdAt: String? = null
+)
+
+data class ToggleSaveTVSeriesRequest(
+    @SerializedName("seriesId") val seriesId: String,
+    @SerializedName("seriesName") val seriesName: String,
+    @SerializedName("channel") val channel: String? = null,
+    @SerializedName("genre") val genre: String? = null,
+    @SerializedName("thumbnailUrl") val thumbnailUrl: String? = null,
+    @SerializedName("popularityScore") val popularityScore: Int = 0
+)
+
 data class SavedSongRequest(
     @SerializedName("video") val video: SavedSongVideoDto,
     @SerializedName("singerId") val singerId: String? = null,

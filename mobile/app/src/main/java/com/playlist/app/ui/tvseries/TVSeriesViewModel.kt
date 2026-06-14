@@ -3,11 +3,13 @@ package com.playlist.app.ui.tvseries
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.playlist.app.data.api.models.*
+import com.playlist.app.data.repository.DownloadRepository
 import com.playlist.app.data.repository.MergeRepository
 import com.playlist.app.data.repository.PlaylistRepository
 import com.playlist.app.data.repository.TVSeriesRepository
 import com.playlist.app.ui.components.SnackbarManager
 import com.playlist.app.ui.components.ToastType
+import com.playlist.app.ui.player.PlayerState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,17 +28,24 @@ data class TVSeriesUiState(
     val customSeriesName: String = "",
     val isGenerating: Boolean = false,
     val generatedVideos: List<YouTubeVideoDto> = emptyList(),
+    val hasGenerated: Boolean = false,
     val error: String? = null,
     val isLoading: Boolean = false,
+    val isLoadingSaved: Boolean = false,
 
-    // Saved/bookmarked series
+    // Saved/bookmarked series (persisted via API)
     val savedSeries: List<TVSeriesDto> = emptyList(),
-    val showSaveDialog: Boolean = false,
-    val saveDialogSeries: TVSeriesDto? = null,
+    val savedSeriesIds: Set<String> = emptySet(),
 
-    // Playlist/merge dialogs
+    // Video selection state
+    val selectedVideoIds: Set<String> = emptySet(),
+    val navigateToPlayer: Boolean = false,
+
+    // Dialogs
     val showNameDialog: Boolean = false,
     val nameDialogType: NameDialogType = NameDialogType.SavePlaylist,
+    val showDownloadDialog: Boolean = false,
+    val videoIdsToDownload: List<String> = emptyList(),
     val isSaving: Boolean = false,
     val isMerging: Boolean = false
 )
@@ -49,17 +58,20 @@ enum class NameDialogType {
 class TVSeriesViewModel @Inject constructor(
     private val tvSeriesRepository: TVSeriesRepository,
     private val playlistRepository: PlaylistRepository,
-    private val mergeRepository: MergeRepository
+    private val mergeRepository: MergeRepository,
+    private val downloadRepository: DownloadRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TVSeriesUiState())
     val uiState: StateFlow<TVSeriesUiState> = _uiState.asStateFlow()
 
-    init { loadSeries() }
+    init {
+        loadSeries()
+    }
 
     fun loadSeries() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             val result = tvSeriesRepository.listTVSeries()
             result.fold(
                 onSuccess = { response ->
@@ -69,12 +81,42 @@ class TVSeriesViewModel @Inject constructor(
                         filteredSeries = response.series,
                         isLoading = false
                     )
+                    // Chain saved series loading after series are available
+                    loadSavedSeries()
                 },
                 onFailure = { e ->
+                    val msg = when {
+                        e.message?.contains("timeout", true) == true -> "Connection timed out. Check your internet and server."
+                        e.message?.contains("Unable to resolve host", true) == true -> "Server unreachable. Is the backend running?"
+                        else -> e.message ?: "Could not load TV series"
+                    }
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = e.message ?: "Failed to load TV series"
+                        error = msg
                     )
+                }
+            )
+        }
+    }
+
+    fun loadSavedSeries() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingSaved = true)
+            val result = tvSeriesRepository.listSavedTVSeries()
+            result.fold(
+                onSuccess = { savedList ->
+                    val savedSeries = _uiState.value.series.filter { s ->
+                        savedList.any { it.seriesId == s.id }
+                    }
+                    val savedIds = savedList.map { it.seriesId }.toSet()
+                    _uiState.value = _uiState.value.copy(
+                        savedSeries = savedSeries,
+                        savedSeriesIds = savedIds,
+                        isLoadingSaved = false
+                    )
+                },
+                onFailure = {
+                    _uiState.value = _uiState.value.copy(isLoadingSaved = false)
                 }
             )
         }
@@ -131,29 +173,41 @@ class TVSeriesViewModel @Inject constructor(
 
     // ── Save/Unsave Series ──────────────────────────────────────
 
-    fun showSaveDialog(series: TVSeriesDto) {
-        _uiState.value = _uiState.value.copy(showSaveDialog = true, saveDialogSeries = series)
-    }
-
-    fun dismissSaveDialog() {
-        _uiState.value = _uiState.value.copy(showSaveDialog = false, saveDialogSeries = null)
-    }
-
     fun toggleSavedSeries(series: TVSeriesDto) {
         val saved = _uiState.value.savedSeries
         val exists = saved.any { it.id == series.id }
-        _uiState.value = _uiState.value.copy(
-            savedSeries = if (exists) saved.filter { it.id != series.id } else saved + series
-        )
-        if (exists) {
-            SnackbarManager.show("Removed: ${series.name}", ToastType.INFO)
-        } else {
-            SnackbarManager.show("Saved: ${series.name}", ToastType.SUCCESS)
+
+        viewModelScope.launch {
+            // Optimistic update
+            _uiState.value = _uiState.value.copy(
+                savedSeries = if (exists) saved.filter { it.id != series.id } else saved + series,
+                savedSeriesIds = if (exists) _uiState.value.savedSeriesIds - series.id
+                    else _uiState.value.savedSeriesIds + series.id
+            )
+
+            val result = tvSeriesRepository.toggleSaveTVSeries(series)
+            result.fold(
+                onSuccess = {
+                    SnackbarManager.show(
+                        if (exists) "Removed: ${series.name}" else "Saved: ${series.name}",
+                        if (exists) ToastType.INFO else ToastType.SUCCESS
+                    )
+                },
+                onFailure = { e ->
+                    // Revert on failure
+                    _uiState.value = _uiState.value.copy(
+                        savedSeries = if (!exists) saved.filter { it.id != series.id } else saved + series,
+                        savedSeriesIds = if (!exists) _uiState.value.savedSeriesIds - series.id
+                            else _uiState.value.savedSeriesIds + series.id
+                    )
+                    SnackbarManager.show("Failed to save: ${e.message ?: "server error"}", ToastType.ERROR)
+                }
+            )
         }
     }
 
     fun isSeriesSaved(seriesId: String): Boolean {
-        return _uiState.value.savedSeries.any { it.id == seriesId }
+        return _uiState.value.savedSeriesIds.contains(seriesId)
     }
 
     // ── Name dialog for save playlist / merge ───────────────────
@@ -185,12 +239,12 @@ class TVSeriesViewModel @Inject constructor(
             else state.customSeriesName.takeIf { it.isNotBlank() }
 
         if (seriesId.isEmpty() && customName == null) {
-            _uiState.value = state.copy(error = "Select a TV series or enter a custom name")
+            _uiState.value = state.copy(error = "Please select a TV series or type a custom name")
             return
         }
 
         viewModelScope.launch {
-            _uiState.value = state.copy(isGenerating = true, error = null)
+            _uiState.value = state.copy(isGenerating = true, error = null, hasGenerated = false)
 
             val result = tvSeriesRepository.generateTVSeriesPlaylist(
                 seriesId = seriesId,
@@ -203,13 +257,26 @@ class TVSeriesViewModel @Inject constructor(
                 onSuccess = { response ->
                     _uiState.value = _uiState.value.copy(
                         isGenerating = false,
-                        generatedVideos = response.videos
+                        generatedVideos = response.videos,
+                        hasGenerated = true
                     )
+                    if (response.videos.isEmpty()) {
+                        SnackbarManager.show("No episodes found for this series", ToastType.INFO)
+                    } else {
+                        SnackbarManager.show("Found ${response.videos.size} episodes", ToastType.SUCCESS)
+                    }
                 },
                 onFailure = { e ->
+                    val msg = when {
+                        e.message?.contains("No videos found", true) == true ->
+                            "No episodes found. Try a different series or adjust filters."
+                        e.message?.contains("quota", true) == true ->
+                            "YouTube API quota exceeded. Please try again later."
+                        else -> e.message ?: "Failed to generate episodes"
+                    }
                     _uiState.value = _uiState.value.copy(
                         isGenerating = false,
-                        error = e.message ?: "Generation failed"
+                        error = msg
                     )
                 }
             )
@@ -223,6 +290,7 @@ class TVSeriesViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isSaving = true, showNameDialog = false)
             val videos = _uiState.value.generatedVideos.takeIf { it.isNotEmpty() } ?: run {
                 _uiState.value = _uiState.value.copy(isSaving = false)
+                SnackbarManager.show("No videos to save", ToastType.ERROR)
                 return@launch
             }
             val result = playlistRepository.savePlaylist(
@@ -236,9 +304,14 @@ class TVSeriesViewModel @Inject constructor(
                     SnackbarManager.show("Playlist saved: $name", ToastType.SUCCESS)
                 },
                 onFailure = { e ->
+                    val msg = when {
+                        e.message?.contains("already exists", true) == true ->
+                            "A playlist with this name already exists"
+                        else -> e.message ?: "Failed to save playlist"
+                    }
                     _uiState.value = _uiState.value.copy(
                         isSaving = false,
-                        error = e.message ?: "Failed to save playlist"
+                        error = msg
                     )
                 }
             )
@@ -253,6 +326,7 @@ class TVSeriesViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isMerging = true, showNameDialog = false)
             val videos = _uiState.value.generatedVideos.takeIf { it.isNotEmpty() } ?: run {
                 _uiState.value = _uiState.value.copy(isMerging = false)
+                SnackbarManager.show("No videos to merge", ToastType.ERROR)
                 return@launch
             }
             val mergeRequests = videos.map { video ->
@@ -268,13 +342,81 @@ class TVSeriesViewModel @Inject constructor(
                     SnackbarManager.show("Merge started: ${response.filename}", ToastType.SUCCESS)
                 },
                 onFailure = { e ->
+                    val msg = when {
+                        e.message?.contains("timeout", true) == true ->
+                            "Merge timed out. The video files may be too large."
+                        else -> e.message ?: "Merge failed"
+                    }
                     _uiState.value = _uiState.value.copy(
                         isMerging = false,
-                        error = e.message ?: "Merge failed"
+                        error = msg
                     )
                 }
             )
             _uiState.value = _uiState.value.copy(isMerging = false)
+        }
+    }
+
+    // ── Video Selection ──────────────────────────────────────────
+
+    fun toggleVideoSelection(videoId: String) {
+        val current = _uiState.value.selectedVideoIds.toMutableSet()
+        if (current.contains(videoId)) {
+            current.remove(videoId)
+        } else {
+            current.add(videoId)
+        }
+        _uiState.value = _uiState.value.copy(selectedVideoIds = current)
+    }
+
+    fun clearVideoSelection() {
+        _uiState.value = _uiState.value.copy(selectedVideoIds = emptySet())
+    }
+
+    fun playSelected() {
+        val selected = _uiState.value.generatedVideos.filter { it.id in _uiState.value.selectedVideoIds }
+        val videos = if (selected.isNotEmpty()) selected else _uiState.value.generatedVideos
+        PlayerState.setQueue(videos)
+        _uiState.value = _uiState.value.copy(navigateToPlayer = true)
+    }
+
+    fun onNavigatedToPlayer() {
+        _uiState.value = _uiState.value.copy(navigateToPlayer = false)
+        clearVideoSelection()
+    }
+
+    // ── Download ─────────────────────────────────────────────────
+
+    fun showDownloadDialog() {
+        val ids = if (_uiState.value.selectedVideoIds.isNotEmpty())
+            _uiState.value.selectedVideoIds.toList()
+        else
+            _uiState.value.generatedVideos.map { it.id }
+        _uiState.value = _uiState.value.copy(
+            showDownloadDialog = true,
+            videoIdsToDownload = ids
+        )
+    }
+
+    fun dismissDownloadDialog() {
+        _uiState.value = _uiState.value.copy(showDownloadDialog = false, videoIdsToDownload = emptyList())
+    }
+
+    fun confirmDownload() {
+        viewModelScope.launch {
+            val ids = _uiState.value.videoIdsToDownload
+            dismissDownloadDialog()
+            var successCount = 0
+            ids.forEach { videoId ->
+                val url = "https://www.youtube.com/watch?v=$videoId"
+                val result = downloadRepository.startDownload(url)
+                if (result.isSuccess) successCount++
+            }
+            if (successCount > 0) {
+                SnackbarManager.show("Downloading $successCount video(s)", ToastType.SUCCESS)
+            } else {
+                SnackbarManager.show("Download failed", ToastType.ERROR)
+            }
         }
     }
 

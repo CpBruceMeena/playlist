@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.MergeType
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.PlaylistAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.playlist.app.ui.components.SnackbarManager
+import com.playlist.app.ui.components.ToastType
 import com.playlist.app.ui.theme.NeonColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -137,11 +140,29 @@ fun SongsScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "No saved songs yet.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = NeonColors.OnSurfaceVariant
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Filled.MusicNote,
+                            contentDescription = null,
+                            tint = NeonColors.OnSurfaceVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.size(56.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            text = "No saved songs yet",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = NeonColors.OnSurface
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "Generate a playlist, select songs you like, and save them here",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = NeonColors.OnSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 48.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
                 }
             } else {
                 // Singer filter chips
@@ -281,6 +302,30 @@ fun SongsScreen(
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Text("Merge", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+
+                        // Download button (for individual songs)
+                        if (selectedCount == 1) {
+                            OutlinedButton(
+                                onClick = {
+                                    val song = filteredSongs.find { uiState.selectedIds.contains(it.id) }
+                                    if (song != null) {
+                                        viewModel.downloadSong(song)
+                                    }
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = NeonColors.NeonCyan
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Download,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text("Download", style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }

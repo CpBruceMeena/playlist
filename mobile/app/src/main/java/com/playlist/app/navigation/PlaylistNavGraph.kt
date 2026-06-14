@@ -52,6 +52,9 @@ fun PlaylistNavHost() {
                             },
                             onNavigateToSingers = {
                                 navController.navigate(NavRoutes.SINGERS)
+                            },
+                            onNavigateToTVSeries = {
+                                navController.navigate(NavRoutes.TV_SERIES)
                             }
                         )
                     }

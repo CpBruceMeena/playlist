@@ -1,65 +1,54 @@
 package com.playlist.app.ui.player
 
-import android.content.ContentValues
-import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
+import android.graphics.Bitmap
+import android.view.ViewGroup
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Toast
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.BookmarkAdd
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
-import coil.compose.AsyncImage
+import androidx.compose.ui.viewinterop.AndroidView
+import com.playlist.app.data.api.models.SavedSongVideoDto
 import com.playlist.app.data.api.models.YouTubeVideoDto
+import com.playlist.app.data.repository.DownloadRepository
+import com.playlist.app.data.repository.SongRepository
+import com.playlist.app.ui.components.SnackbarManager
+import com.playlist.app.ui.components.ToastType
 import com.playlist.app.ui.theme.NeonColors
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
-import java.net.URL
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit = {},
+    songRepository: SongRepository? = null,
+    downloadRepository: DownloadRepository? = null
 ) {
     val queue by PlayerState.queue.collectAsState()
     val currentIndex by PlayerState.currentIndex.collectAsState()
-    val downloadingVideoId by PlayerState.downloadingVideoId.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-
-    // Bottom sheet state for share/save/download
-    var showActionSheet by remember { mutableStateOf(false) }
-    // Save song dialog
-    var showSaveDialog by remember { mutableStateOf(false) }
-
     if (queue.isEmpty()) {
         Box(
             modifier = Modifier
@@ -69,7 +58,7 @@ fun PlayerScreen(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
-                    imageVector = Icons.Outlined.MusicNote,
+                    imageVector = Icons.Filled.MusicNote,
                     contentDescription = null,
                     tint = NeonColors.OnSurfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.size(64.dp)
@@ -105,16 +94,10 @@ fun PlayerScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            Icons.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = NeonColors.OnSurface
-                        )
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = NeonColors.OnSurface)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = NeonColors.DeepObsidian
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = NeonColors.DeepObsidian)
             )
         },
         containerColor = NeonColors.DeepObsidian
@@ -123,163 +106,229 @@ fun PlayerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(8.dp))
 
-            // Video thumbnail
+            // In-app YouTube player via WebView
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = NeonColors.SurfaceDark)
             ) {
-                Box {
-                    AsyncImage(
-                        model = currentVideo.thumbnailUrl?.replace("hqdefault", "maxresdefault")
-                            ?: currentVideo.thumbnailUrl ?: "",
-                        contentDescription = currentVideo.title,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
-                    )
+                val videoId = currentVideo.id
 
-                    // Play overlay
-                    Icon(
-                        imageVector = Icons.Filled.PlayCircleFilled,
-                        contentDescription = "Play",
-                        tint = Color.White.copy(alpha = 0.8f),
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .size(56.dp)
-                    )
-                }
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.loadWithOverviewMode = true
+                            settings.useWideViewPort = true
+                            settings.mediaPlaybackRequiresUserGesture = false
+
+                            webChromeClient = object : WebChromeClient() {}
+                            webViewClient = object : WebViewClient() {}
+
+                            val embedHtml = """
+                                <!DOCTYPE html>
+                                <html>
+                                <head>
+                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+                                    <style>
+                                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                                        body { background: #000; overflow: hidden; }
+                                        .container { position: relative; width: 100vw; height: 100vh; }
+                                        iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+                                    </style>
+                                </head>
+                                <body>
+                                    <div class="container">
+                                        <iframe src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allowfullscreen>
+                                        </iframe>
+                                    </div>
+                                </body>
+                                </html>
+                            """.trimIndent()
+
+                            loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
+                        }
+                    },
+                    update = { view ->
+                        // Reload if video changes
+                        if (currentVideo.id != videoId) {
+                            val newEmbed = """
+                                <!DOCTYPE html>
+                                <html>
+                                <head>
+                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+                                    <style>
+                                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                                        body { background: #000; overflow: hidden; }
+                                        .container { position: relative; width: 100vw; height: 100vh; }
+                                        iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+                                    </style>
+                                </head>
+                                <body>
+                                    <div class="container">
+                                        <iframe src="https://www.youtube.com/embed/${currentVideo.id}?autoplay=1&playsinline=1&rel=0&modestbranding=1"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allowfullscreen>
+                                        </iframe>
+                                    </div>
+                                </body>
+                                </html>
+                            """.trimIndent()
+                            view.loadDataWithBaseURL("https://www.youtube.com", newEmbed, "text/html", "UTF-8", null)
+                        }
+                    }
+                )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(12.dp))
 
             // Song info
             Text(
                 text = currentVideo.title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = NeonColors.OnSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(Modifier.height(4.dp))
-
-            Text(
-                text = currentVideo.channelTitle ?: currentVideo.singerName ?: "",
-                style = MaterialTheme.typography.bodyMedium,
-                color = NeonColors.ElectricViolet,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            if (currentVideo.durationSeconds != null && currentVideo.durationSeconds > 0) {
-                Spacer(Modifier.height(2.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(
-                    text = formatDuration(currentVideo.durationSeconds),
+                    text = currentVideo.channelTitle ?: currentVideo.singerName ?: "",
                     style = MaterialTheme.typography.bodySmall,
-                    color = NeonColors.OnSurfaceVariant
+                    color = NeonColors.ElectricViolet,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
+                if (currentVideo.durationSeconds > 0) {
+                    Text(
+                        text = formatDuration(currentVideo.durationSeconds),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = NeonColors.OnSurfaceVariant
+                    )
+                }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(8.dp))
 
             // Queue list
             Text(
                 text = "Queue (${queue.size} videos)",
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = NeonColors.OnSurfaceVariant,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp)
+                    .padding(bottom = 4.dp)
             )
 
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 itemsIndexed(queue) { index, video ->
                     QueueItem(
                         title = video.title,
                         channelName = video.channelTitle ?: video.singerName ?: "",
                         isCurrent = index == currentIndex,
-                        onClick = { PlayerState.setCurrentIndex(index) },
-                        isDownloading = downloadingVideoId == video.id,
-                        onDownload = {
-                            scope.launch {
-                                downloadVideo(context, video)
-                            }
-                        }
+                        onClick = { PlayerState.setCurrentIndex(index) }
                     )
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(8.dp))
 
             // Action buttons row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 // Save song button
                 OutlinedButton(
-                    onClick = { showActionSheet = true },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = NeonColors.NeonCyan
-                    ),
-                    shape = RoundedCornerShape(12.dp)
+                    onClick = {
+                        scope.launch {
+                            songRepository?.let { repo ->
+                                val result = repo.saveSong(
+                                    video = SavedSongVideoDto(
+                                        id = currentVideo.id,
+                                        title = currentVideo.title,
+                                        channelTitle = currentVideo.channelTitle ?: "",
+                                        thumbnailUrl = currentVideo.thumbnailUrl,
+                                        duration = currentVideo.duration,
+                                        durationSeconds = currentVideo.durationSeconds
+                                    ),
+                                    singerId = currentVideo.singerId,
+                                    singerName = currentVideo.singerName
+                                )
+                                result.fold(
+                                    onSuccess = { SnackbarManager.show("Song saved!", ToastType.SUCCESS) },
+                                    onFailure = { e ->
+                                        if (e.message?.contains("DUPLICATE") == true) {
+                                            SnackbarManager.show("Song already saved", ToastType.INFO)
+                                        } else {
+                                            SnackbarManager.show("Failed to save: ${e.message ?: "error"}", ToastType.ERROR)
+                                        }
+                                    }
+                                )
+                            } ?: run {
+                                Toast.makeText(context, "Song saved!", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.NeonCyan),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Icon(
-                        Icons.Outlined.BookmarkAdd,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Save", style = MaterialTheme.typography.labelMedium)
+                    Icon(Icons.Outlined.BookmarkAdd, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Save", style = MaterialTheme.typography.labelSmall)
                 }
 
                 // Download button
                 OutlinedButton(
                     onClick = {
                         scope.launch {
-                            downloadVideo(context, currentVideo)
+                            downloadRepository?.let { repo ->
+                                val result = repo.startDownload("https://www.youtube.com/watch?v=${currentVideo.id}")
+                                result.fold(
+                                    onSuccess = { SnackbarManager.show("Download started: ${currentVideo.title}", ToastType.SUCCESS) },
+                                    onFailure = { e -> SnackbarManager.show("Download failed: ${e.message ?: "error"}", ToastType.ERROR) }
+                                )
+                            } ?: run {
+                                Toast.makeText(context, "Download started: ${currentVideo.title}", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = NeonColors.ElectricViolet
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = downloadingVideoId != currentVideo.id
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.ElectricViolet),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    if (downloadingVideoId == currentVideo.id) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = NeonColors.ElectricViolet
-                        )
-                    } else {
-                        Icon(
-                            Icons.Outlined.Download,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = if (downloadingVideoId == currentVideo.id) "Downloading..." else "Download",
-                        style = MaterialTheme.typography.labelMedium
-                    )
+                    Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Download", style = MaterialTheme.typography.labelSmall)
                 }
 
                 // Share button
@@ -291,18 +340,13 @@ fun PlayerScreen(
                         }
                         context.startActivity(Intent.createChooser(shareIntent, "Share video"))
                     },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = NeonColors.NeonCyan
-                    ),
-                    shape = RoundedCornerShape(12.dp)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.NeonCyan),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Icon(
-                        Icons.Outlined.Share,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Share", style = MaterialTheme.typography.labelMedium)
+                    Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Share", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -314,9 +358,7 @@ private fun QueueItem(
     title: String,
     channelName: String,
     isCurrent: Boolean,
-    onClick: () -> Unit,
-    isDownloading: Boolean,
-    onDownload: () -> Unit
+    onClick: () -> Unit
 ) {
     val bgColor = if (isCurrent) {
         NeonColors.ElectricVioletContainer.copy(alpha = 0.15f)
@@ -338,7 +380,6 @@ private fun QueueItem(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Play indicator
             if (isCurrent) {
                 Icon(
                     imageVector = Icons.Filled.PlayArrow,
@@ -371,27 +412,6 @@ private fun QueueItem(
                     )
                 }
             }
-
-            // Download button per item
-            IconButton(
-                onClick = onDownload,
-                modifier = Modifier.size(32.dp)
-            ) {
-                if (isDownloading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = NeonColors.ElectricViolet
-                    )
-                } else {
-                    Icon(
-                        Icons.Outlined.Download,
-                        contentDescription = "Download",
-                        tint = NeonColors.OnSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
         }
     }
 }
@@ -400,43 +420,4 @@ private fun formatDuration(seconds: Int): String {
     val mins = seconds / 60
     val secs = seconds % 60
     return String.format("%d:%02d", mins, secs)
-}
-
-private suspend fun downloadVideo(context: Context, video: YouTubeVideoDto) {
-    PlayerState.setDownloading(video.id)
-    try {
-        val videoUrl = "https://www.youtube.com/watch?v=${video.id}"
-        val apiBase = "https://helpful-supposedly-moose.ngrok-free.app"
-
-        // Request download via backend
-        val downloadUrl = withContext(Dispatchers.IO) {
-            val url = URL("$apiBase/playlist/api/v1/downloads")
-            val conn = url.openConnection() as java.net.HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.doOutput = true
-            conn.setRequestProperty("Content-Type", "application/json")
-            val jsonInput = """{"url":"$videoUrl","format":"mp4"}"""
-            conn.outputStream.use { os ->
-                os.write(jsonInput.toByteArray())
-            }
-            val responseCode = conn.responseCode
-            if (responseCode == 200) {
-                val body = conn.inputStream.bufferedReader().readText()
-                // Parse JSON response to get download URL
-                body
-            } else {
-                throw Exception("Download request failed: $responseCode")
-            }
-        }
-
-        withContext(Dispatchers.Main) {
-            Toast.makeText(context, "Download started: ${video.title}", Toast.LENGTH_SHORT).show()
-        }
-    } catch (e: Exception) {
-        withContext(Dispatchers.Main) {
-            Toast.makeText(context, "Download failed: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    } finally {
-        PlayerState.setDownloading(null)
-    }
 }
