@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -116,7 +117,13 @@ func (h *GenerateHandler) Generate(c *gin.Context) {
 		return
 	}
 
-	// Apply filters
+	// Determine the desired result count the user actually wants
+	requestedCount := req.Filters.MaxResults
+	if requestedCount <= 0 {
+		requestedCount = 10 // sensible default
+	}
+
+	// Apply filters — keep a large pool (fetchCount) so shuffling can pick a varied subset
 	svcFilters := services.FilterCriteria{
 		Query:           req.Query,
 		DurationMin:     req.Filters.DurationMin,
@@ -126,11 +133,21 @@ func (h *GenerateHandler) Generate(c *gin.Context) {
 		ExcludeKeywords: req.Filters.ExcludeKeywords,
 		UploadDate:      toServiceUploadDate(req.Filters.UploadDate),
 		MinViews:        req.Filters.MinViews,
-		MaxResults:      req.Filters.MaxResults,
+		MaxResults:      fetchCount, // keep pool large for shuffling
 		SafeSearch:      req.Filters.SafeSearch,
 	}
 
 	filtered := h.FilterService.ApplyFilters(videos, svcFilters)
+
+	// 🎲 Shuffle for variety — every request (even cache hits) surfaces a different subset
+	rand.Shuffle(len(filtered), func(i, j int) {
+		filtered[i], filtered[j] = filtered[j], filtered[i]
+	})
+
+	// Limit to the user's requested count
+	if len(filtered) > requestedCount {
+		filtered = filtered[:requestedCount]
+	}
 
 	// Convert to API response format, dedup by video ID
 	seen := make(map[string]struct{}, len(filtered))
@@ -179,10 +196,10 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 		return
 	}
 
-	// Validate singer count (DB singers + custom singers total 2-5)
+	// Validate singer count (DB singers + custom singers total 1-5)
 	totalSingerCount := len(req.SingerIDs) + len(req.CustomSingers)
-	if totalSingerCount < 2 || totalSingerCount > 5 {
-		apiError(c, http.StatusBadRequest, "Please select between 2 and 5 singers total (including custom)", "VALIDATION_ERROR")
+	if totalSingerCount < 1 || totalSingerCount > 5 {
+		apiError(c, http.StatusBadRequest, "Please select between 1 and 5 singers total (including custom)", "VALIDATION_ERROR")
 		return
 	}
 
@@ -229,8 +246,8 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 		})
 	}
 
-	if len(singerSearches) < 2 {
-		apiError(c, http.StatusNotFound, "At least 2 singers required (DB or custom)", "NOT_FOUND")
+	if len(singerSearches) < 1 {
+		apiError(c, http.StatusNotFound, "At least 1 singer required (DB or custom)", "NOT_FOUND")
 		return
 	}
 
@@ -240,6 +257,8 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 	}
 
 	// Build service-level filters (shared across all singers)
+	// MaxResults is set high (fetchCount) so we keep a large pool for shuffling later.
+	fetchCount := min(resultsPerSinger*3, 50)
 	svcFilters := services.FilterCriteria{
 		DurationMin:     req.Filters.DurationMin,
 		DurationMax:     req.Filters.DurationMax,
@@ -248,7 +267,7 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 		ExcludeKeywords: req.Filters.ExcludeKeywords,
 		UploadDate:      toServiceUploadDate(req.Filters.UploadDate),
 		MinViews:        req.Filters.MinViews,
-		MaxResults:      resultsPerSinger,
+		MaxResults:      fetchCount, // keep pool large for shuffling
 		SafeSearch:      req.Filters.SafeSearch,
 	}
 
@@ -278,7 +297,6 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 			}
 
 			query := s.Name + " song"
-			fetchCount := min(resultsPerSinger*3, 50)
 			cacheKey := services.GenerateSearchCacheKey(query, fetchCount)
 
 			// Try cache first
@@ -330,13 +348,8 @@ func (h *GenerateHandler) GenerateMultiSinger(c *gin.Context) {
 				}
 			}
 
-			// Apply filters per-singer
+			// Apply filters per-singer (no per-singer limit — keep pool large for shuffling)
 			filtered := h.FilterService.ApplyFilters(videos, svcFilters)
-
-			// Limit per singer
-			if len(filtered) > resultsPerSinger {
-				filtered = filtered[:resultsPerSinger]
-			}
 
 			sendOrCancel(ctx, resultCh, singerResult{SingerID: s.ID, SingerName: s.Name, Videos: filtered})
 		}(ss)
@@ -407,6 +420,17 @@ CollectResults:
 	if len(allVideos) == 0 {
 		apiError(c, http.StatusNotFound, "No videos found for the selected singers. Try different filters or fewer singers.", "NO_RESULTS")
 		return
+	}
+
+	// 🎲 Shuffle the combined pool so every request surfaces a different subset
+	rand.Shuffle(len(allVideos), func(i, j int) {
+		allVideos[i], allVideos[j] = allVideos[j], allVideos[i]
+	})
+
+	// Limit to the total desired count (resultsPerSinger * number of singers is a good ceiling)
+	maxTotal := resultsPerSinger * len(singerSearches)
+	if len(allVideos) > maxTotal {
+		allVideos = allVideos[:maxTotal]
 	}
 
 	apiResponse(c, structs.MultiSingerResponse{

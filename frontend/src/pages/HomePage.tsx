@@ -11,6 +11,7 @@ import { ErrorState } from "../components/feedback/ErrorState";
 import { useFilterStore } from "../stores/filterStore";
 import { usePlaylistStore } from "../stores/playlistStore";
 import { useSingerStore } from "../stores/singerStore";
+import { apiClient } from "../api/client";
 
 const SUGGESTIONS = [
   "Lofi beats to study to",
@@ -42,6 +43,13 @@ export function HomePage() {
   const singerGenerate = useSingerStore((s) => s.generate);
 
   // Clear stale playlist state when returning to home
+  // Cancel any pending API requests on unmount
+  useEffect(() => {
+    return () => {
+      apiClient.cancelPending();
+    };
+  }, []);
+
   useEffect(() => {
     if (videos.length > 0) {
       clearPlaylist();
@@ -62,10 +70,10 @@ export function HomePage() {
 
     // If singers selected but no query
     if (!query.trim()) {
-      if (totalSingers >= 2) {
+      if (totalSingers >= 1) {
         const filters = useFilterStore.getState().getFilterPayload();
         singerGenerate(filters);
-      } else if (totalSingers === 1) {
+      } else {
         setShowSingerDrawer(true);
       }
       return;
@@ -154,6 +162,32 @@ export function HomePage() {
                   {selectedSingerIds.length}
                 </span>
               )}
+            </Button>
+
+            {/* TV Series chip */}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate("/tv-series")}
+              icon={
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                  <line x1="8" y1="21" x2="16" y2="21" />
+                  <line x1="12" y1="17" x2="12" y2="21" />
+                </svg>
+              }
+              className="!rounded-full !border !px-2.5"
+            >
+              TV Series
             </Button>
 
             {selectedSingerObjects.map((singer) => (

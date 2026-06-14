@@ -87,6 +87,26 @@ func (Singer) TableName() string {
 	return "singers"
 }
 
+// TVSeries represents a curated TV series/show
+type TVSeries struct {
+	ID              uint   `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name            string `gorm:"type:varchar(255);not null;index:idx_tv_series_name" json:"name"`
+	Channel         string `gorm:"type:varchar(255);not null;index:idx_tv_series_channel" json:"channel"`
+	Genre           string `gorm:"type:varchar(100);not null;index:idx_tv_series_genre" json:"genre"`
+	ThumbnailURL    string `gorm:"type:varchar(500);column:thumbnail_url" json:"thumbnailUrl"`
+	Description     string `gorm:"type:text" json:"description"`
+	PopularityScore int    `gorm:"column:popularity_score;default:0;index:idx_tv_series_popularity" json:"popularityScore"`
+	IsActive        bool   `gorm:"column:is_active;default:true" json:"isActive"`
+
+	CreatedAt time.Time      `gorm:"column:created_at;autoCreateTime" json:"-"`
+	UpdatedAt time.Time      `gorm:"column:updated_at;autoUpdateTime" json:"-"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+func (TVSeries) TableName() string {
+	return "tv_series"
+}
+
 // YouTubeCache stores YouTube API responses for testing/rate-limit fallback
 type YouTubeCache struct {
 	ID            uint      `gorm:"primaryKey" json:"id,string"`
@@ -102,6 +122,18 @@ type YouTubeCache struct {
 
 func (YouTubeCache) TableName() string {
 	return "youtube_cache"
+}
+
+// SavedTVSeries stores user-saved TV series (in-memory only, not in DB)
+type SavedTVSeries struct {
+	ID              string `json:"id"`
+	SeriesID        string `json:"seriesId"`
+	SeriesName      string `json:"seriesName"`
+	Channel         string `json:"channel"`
+	Genre           string `json:"genre"`
+	ThumbnailURL    string `json:"thumbnailUrl"`
+	PopularityScore int    `json:"popularityScore"`
+	CreatedAt       string `json:"createdAt"`
 }
 
 // SavedSong stores user-saved songs (in-memory only, not in DB)

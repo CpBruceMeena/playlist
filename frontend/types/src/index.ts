@@ -120,6 +120,47 @@ export interface UserProfile {
   avatarUrl: string;
 }
 
+// ─── TV Series Types ──────────────────────────────────────────
+export interface TVSeries {
+  id: string;
+  name: string;
+  channel: string;
+  genre: string;
+  thumbnailUrl: string;
+  popularityScore: number;
+  isActive: boolean;
+}
+
+export interface TVSeriesResponse {
+  series: TVSeries[];
+  channels: string[];
+}
+
+export interface TVSeriesGenerateRequest {
+  seriesId: string;
+  customName?: string;
+  resultsPerSeries: number;
+  filters: FilterCriteria;
+}
+
+export interface TVSeriesGenerateResponse {
+  videos: YouTubeVideo[];
+  quotaUsed: number;
+  seriesName: string;
+}
+
+// ─── Saved TV Series Types ────────────────────────────────────
+export interface SavedTVSeries {
+  id: string;
+  seriesId: string;
+  seriesName: string;
+  channel: string;
+  genre: string;
+  thumbnailUrl: string;
+  popularityScore: number;
+  createdAt: string;
+}
+
 // ─── Singer Types ──────────────────────────────────────────────
 export interface Singer {
   id: string;

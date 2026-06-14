@@ -214,6 +214,50 @@ type DownloadResponse struct {
 	DownloadURL string `json:"downloadUrl"`
 }
 
+// --- TV Series Types ---
+
+// TVSeriesResponse is the response for GET /api/v1/tv-series
+type TVSeriesResponse struct {
+	Series []TVSeriesListItem `json:"series"`
+	Channels []string         `json:"channels"`
+}
+
+// TVSeriesListItem is a single TV series in the list response
+type TVSeriesListItem struct {
+	ID               uint   `json:"id,string"`
+	Name             string `json:"name"`
+	Channel          string `json:"channel"`
+	Genre            string `json:"genre"`
+	ThumbnailURL     string `json:"thumbnailUrl"`
+	PopularityScore  int    `json:"popularityScore"`
+}
+
+// TVSeriesGenerateRequest is the request for POST /api/v1/generate/tv-series
+type TVSeriesGenerateRequest struct {
+	SeriesID    string         `json:"seriesId"`
+	CustomName  string         `json:"customName,omitempty"`
+	ResultsPerSeries int      `json:"resultsPerSeries" binding:"required,min=3,max=30"`
+	Filters     FilterCriteria `json:"filters"`
+}
+
+// TVSeriesGenerateResponse is the response for POST /api/v1/generate/tv-series
+type TVSeriesGenerateResponse struct {
+	Videos    []YouTubeVideo `json:"videos"`
+	QuotaUsed int            `json:"quotaUsed"`
+	SeriesName string        `json:"seriesName"`
+}
+
+// --- Saved TV Series ---
+
+type ToggleSaveTVSeriesRequest struct {
+	SeriesID        string `json:"seriesId" binding:"required"`
+	SeriesName      string `json:"seriesName"`
+	Channel         string `json:"channel"`
+	Genre           string `json:"genre"`
+	ThumbnailURL    string `json:"thumbnailUrl"`
+	PopularityScore int    `json:"popularityScore"`
+}
+
 // --- Saved Songs ---
 
 type SavedSongRequest struct {

@@ -2,8 +2,9 @@ package com.playlist.app.ui.songs
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.playlist.app.data.api.models.SavedSongResponseDto
-import com.playlist.app.data.api.models.YouTubeVideoDto
+import com.playlist.app.data.api.models.*
+import com.playlist.app.data.repository.MergeRepository
+import com.playlist.app.data.repository.PlaylistRepository
 import com.playlist.app.data.repository.SongRepository
 import com.playlist.app.ui.components.SnackbarManager
 import com.playlist.app.ui.components.ToastType
@@ -20,12 +21,23 @@ data class SongsUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val selectedIds: Set<String> = emptySet(),
-    val singerFilter: String? = null
+    val singerFilter: String? = null,
+    val isSavingPlaylist: Boolean = false,
+    val isMerging: Boolean = false,
+    val showNameDialog: Boolean = false,
+    val nameDialogType: NameDialogType = NameDialogType.SavePlaylist,
+    val mergeSuccess: String? = null
 )
+
+enum class NameDialogType {
+    SavePlaylist, Merge
+}
 
 @HiltViewModel
 class SongsViewModel @Inject constructor(
-    private val songRepository: SongRepository
+    private val songRepository: SongRepository,
+    private val playlistRepository: PlaylistRepository,
+    private val mergeRepository: MergeRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SongsUiState())
@@ -104,6 +116,95 @@ class SongsViewModel @Inject constructor(
         }
         PlayerState.setQueue(videos)
         SnackbarManager.show("Playing ${videos.size} songs", ToastType.SUCCESS)
+    }
+
+    // Show save-as-playlist dialog
+    fun showSavePlaylistDialog() {
+        _uiState.value = _uiState.value.copy(
+            showNameDialog = true,
+            nameDialogType = NameDialogType.SavePlaylist
+        )
+    }
+
+    // Show merge dialog
+    fun showMergeDialog() {
+        _uiState.value = _uiState.value.copy(
+            showNameDialog = true,
+            nameDialogType = NameDialogType.Merge
+        )
+    }
+
+    fun dismissNameDialog() {
+        _uiState.value = _uiState.value.copy(showNameDialog = false)
+    }
+
+    fun saveAsPlaylist(name: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSavingPlaylist = true, showNameDialog = false)
+            val selected = _uiState.value.songs.filter { it.id in _uiState.value.selectedIds }
+            val videos = selected.map { song ->
+                YouTubeVideoDto(
+                    id = song.videoId,
+                    title = song.title,
+                    channelTitle = song.channelTitle,
+                    thumbnailUrl = song.thumbnailUrl,
+                    durationSeconds = song.durationSeconds,
+                    singerName = song.singerName
+                )
+            }
+            val result = playlistRepository.savePlaylist(
+                name = name,
+                query = "saved-songs",
+                filters = null,
+                videos = videos
+            )
+            result.fold(
+                onSuccess = {
+                    SnackbarManager.show("Playlist saved: $name", ToastType.SUCCESS)
+                    _uiState.value = _uiState.value.copy(isSavingPlaylist = false)
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isSavingPlaylist = false,
+                        error = error.message ?: "Failed to save playlist"
+                    )
+                }
+            )
+        }
+    }
+
+    fun mergeSelected(name: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isMerging = true, showNameDialog = false)
+            val selected = _uiState.value.songs.filter { it.id in _uiState.value.selectedIds }
+            val videos = selected.map { song ->
+                MergeVideoRequest(
+                    id = song.videoId,
+                    title = song.title,
+                    url = "https://www.youtube.com/watch?v=${song.videoId}"
+                )
+            }
+            val result = mergeRepository.mergeVideos(videos)
+            result.fold(
+                onSuccess = { response ->
+                    SnackbarManager.show("Merge started: ${response.filename}", ToastType.SUCCESS)
+                    _uiState.value = _uiState.value.copy(
+                        isMerging = false,
+                        mergeSuccess = response.filename
+                    )
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isMerging = false,
+                        error = error.message ?: "Merge failed"
+                    )
+                }
+            )
+        }
+    }
+
+    fun clearMessages() {
+        _uiState.value = _uiState.value.copy(error = null, mergeSuccess = null)
     }
 
     fun getFilteredSongs(): List<SavedSongResponseDto> {

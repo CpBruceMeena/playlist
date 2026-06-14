@@ -23,6 +23,7 @@ func EnsureTables(db *gorm.DB) error {
 		{Model: &structs.Playlist{}},
 		{Model: &structs.PlaylistVideo{}},
 		{Model: &structs.Singer{}, SeedFunc: SeedSingers},
+		{Model: &structs.TVSeries{}, SeedFunc: SeedTVSeries},
 		{Model: &structs.YouTubeCache{}},
 	}
 
@@ -62,6 +63,8 @@ func getModelName(model interface{}) string {
 		return "playlist_videos"
 	case *structs.Singer:
 		return "singers"
+	case *structs.TVSeries:
+		return "tv_series"
 	case *structs.YouTubeCache:
 		return "youtube_cache"
 	default:

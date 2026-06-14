@@ -2,7 +2,7 @@ package com.playlist.app.data.api.models
 
 import com.google.gson.annotations.SerializedName
 
-// --- Filter Criteria ---
+// ─── Filter Criteria ────────────────────────────────────────────
 
 data class FilterCriteriaDto(
     @SerializedName("query") val query: String? = null,
@@ -23,7 +23,7 @@ data class UploadDateDto(
     @SerializedName("end") val end: String? = null
 )
 
-// --- Generate ---
+// ─── Generate ───────────────────────────────────────────────────
 
 data class GenerateRequest(
     @SerializedName("query") val query: String,
@@ -35,7 +35,7 @@ data class GenerateResponseDto(
     @SerializedName("quotaUsed") val quotaUsed: Int = 0
 )
 
-// --- Multi-Singer ---
+// ─── Multi-Singer ───────────────────────────────────────────────
 
 data class MultiSingerRequest(
     @SerializedName("singerIds") val singerIds: List<String>,
@@ -51,7 +51,53 @@ data class MultiSingerResponseDto(
     @SerializedName("singerNames") val singerNames: Map<String, String>? = null
 )
 
-// --- Generic API Response ---
+// ─── TV Series ──────────────────────────────────────────────────
+
+data class TVSeriesDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("channel") val channel: String,
+    @SerializedName("genre") val genre: String,
+    @SerializedName("thumbnailUrl") val thumbnailUrl: String? = null,
+    @SerializedName("popularityScore") val popularityScore: Int = 0
+)
+
+data class TVSeriesResponseDto(
+    @SerializedName("series") val series: List<TVSeriesDto>,
+    @SerializedName("channels") val channels: List<String>
+)
+
+data class TVSeriesGenerateRequest(
+    @SerializedName("seriesId") val seriesId: String = "",
+    @SerializedName("customName") val customName: String? = null,
+    @SerializedName("resultsPerSeries") val resultsPerSeries: Int = 30,
+    @SerializedName("filters") val filters: FilterCriteriaDto? = null
+)
+
+data class TVSeriesGenerateResponseDto(
+    @SerializedName("videos") val videos: List<YouTubeVideoDto>,
+    @SerializedName("quotaUsed") val quotaUsed: Int = 0,
+    @SerializedName("seriesName") val seriesName: String = ""
+)
+
+// ─── Downloads ──────────────────────────────────────────────────
+
+data class DownloadRequest(
+    @SerializedName("url") val url: String
+)
+
+data class DownloadResponseDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("filename") val filename: String,
+    @SerializedName("title") val title: String,
+    @SerializedName("thumbnailUrl") val thumbnailUrl: String? = null,
+    @SerializedName("duration") val duration: Int = 0,
+    @SerializedName("fileSize") val fileSize: Long = 0,
+    @SerializedName("createdAt") val createdAt: String? = null,
+    @SerializedName("downloadUrl") val downloadUrl: String? = null
+)
+
+// ─── Generic API Response ───────────────────────────────────────
 
 data class ApiResponseDto<T>(
     @SerializedName("data") val data: T? = null

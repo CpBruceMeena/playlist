@@ -7,26 +7,30 @@ import retrofit2.http.*
 interface PlaylistApi {
 
     // --- Generate ---
-
     @POST("generate")
     suspend fun generatePlaylist(
         @Body request: GenerateRequest
     ): Response<ApiResponseDto<GenerateResponseDto>>
 
     // --- Singers ---
-
     @GET("singers")
     suspend fun listSingers(): Response<ApiResponseDto<SingerResponseDto>>
-
-    // --- Multi-Singer ---
 
     @POST("generate/multi-singer")
     suspend fun generateMultiSinger(
         @Body request: MultiSingerRequest
     ): Response<ApiResponseDto<MultiSingerResponseDto>>
 
-    // --- Playlists ---
+    // --- TV Series ---
+    @GET("tv-series")
+    suspend fun listTVSeries(): Response<ApiResponseDto<TVSeriesResponseDto>>
 
+    @POST("generate/tv-series")
+    suspend fun generateTVSeriesPlaylist(
+        @Body request: TVSeriesGenerateRequest
+    ): Response<ApiResponseDto<TVSeriesGenerateResponseDto>>
+
+    // --- Playlists ---
     @POST("playlists")
     suspend fun savePlaylist(
         @Body request: CreatePlaylistRequest
@@ -52,7 +56,6 @@ interface PlaylistApi {
     ): Response<Unit>
 
     // --- Merge ---
-
     @POST("merge")
     suspend fun mergeVideos(
         @Body request: MergeRequest
@@ -61,8 +64,12 @@ interface PlaylistApi {
     @GET("merged")
     suspend fun listMergedVideos(): Response<ApiResponseDto<List<MergedVideoDto>>>
 
-    // --- Saved Songs ---
+    @DELETE("merged/{id}")
+    suspend fun deleteMergedVideo(
+        @Path("id") id: String
+    ): Response<ApiResponseDto<Map<String, Any>>>
 
+    // --- Saved Songs ---
     @POST("songs")
     suspend fun saveSong(
         @Body request: SavedSongRequest
@@ -75,4 +82,18 @@ interface PlaylistApi {
     suspend fun deleteSong(
         @Path("id") id: String
     ): Response<Unit>
+
+    // --- Downloads ---
+    @POST("downloads")
+    suspend fun startDownload(
+        @Body request: DownloadRequest
+    ): Response<ApiResponseDto<DownloadResponseDto>>
+
+    @GET("downloads")
+    suspend fun listDownloads(): Response<ApiResponseDto<List<DownloadResponseDto>>>
+
+    @DELETE("downloads/{id}")
+    suspend fun deleteDownload(
+        @Path("id") id: String
+    ): Response<ApiResponseDto<Map<String, Any>>>
 }

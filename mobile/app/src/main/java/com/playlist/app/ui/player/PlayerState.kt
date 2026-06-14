@@ -16,6 +16,9 @@ object PlayerState {
     private val _currentIndex = MutableStateFlow(0)
     val currentIndex: StateFlow<Int> = _currentIndex.asStateFlow()
 
+    private val _downloadingVideoId = MutableStateFlow<String?>(null)
+    val downloadingVideoId: StateFlow<String?> = _downloadingVideoId.asStateFlow()
+
     fun setQueue(videos: List<YouTubeVideoDto>) {
         _queue.value = videos
         _currentIndex.value = 0
@@ -25,8 +28,13 @@ object PlayerState {
         _currentIndex.value = index
     }
 
+    fun setDownloading(videoId: String?) {
+        _downloadingVideoId.value = videoId
+    }
+
     fun clear() {
         _queue.value = emptyList()
         _currentIndex.value = 0
+        _downloadingVideoId.value = null
     }
 }

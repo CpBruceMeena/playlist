@@ -9,6 +9,12 @@ fde2915 Restore shorts/live as optional video types (not selected by default)
 
 ?? memory.md
 
+## Git Hooks
+- Located in `.githooks/` (committed to repo, configured via `git config core.hooksPath .githooks`)
+- **pre-commit**: Blocks commits on `main`/`master` — use `git commit --no-verify` to bypass
+- **pre-push**: Blocks pushes to `main`/`master` — use `git push --no-verify` to bypass
+- All new clones must run: `git config core.hooksPath .githooks`
+
 ## Running Services
 - Frontend: 39301
 40628
