@@ -10,6 +10,7 @@ import { MergeOrderDialog } from "../components/processing/MergeOrderDialog";
 import { usePlaylistStore } from "../stores/playlistStore";
 import { useSavedSongsStore } from "../stores/savedSongsStore";
 import { useSavedPlaylistsStore } from "../stores/savedPlaylistsStore";
+import { useSavedEpisodesStore } from "../stores/savedEpisodesStore";
 import { useFilterStore } from "../stores/filterStore";
 import { useSingerStore, hasSingerAttribution } from "../stores/singerStore";
 import { startDownload } from "../api/downloads";
@@ -162,7 +163,7 @@ const EMPTY_FILTERS: FilterCriteria = {
 
 export function PlaylistPage() {
   const navigate = useNavigate();
-  const { videos, error } = usePlaylistStore();
+  const { videos, error, generationSource } = usePlaylistStore();
   const query = useFilterStore((s) => s.query);
   const savePlaylist = useSavedPlaylistsStore((s) => s.savePlaylist);
   const addSongsToMySongs = useSavedSongsStore((s) => s.addSongs);
@@ -308,6 +309,21 @@ export function PlaylistPage() {
     setIsSelecting(false);
     setSelectedIds([]);
   },    [selectedVideos, addSongsToMySongs]);
+
+  // ── Add selected to My TV Episodes ──
+  const addEpisodesToMyTV = useSavedEpisodesStore((s) => s.addEpisodes);
+
+  const isTVSeriesSource = generationSource === 'tv-series';
+
+  const handleAddToMyEpisodes = useCallback(() => {
+    if (selectedVideos.length === 0) return;
+    const result = addEpisodesToMyTV(selectedVideos);
+    if ("error" in result) {
+      return;
+    }
+    setIsSelecting(false);
+    setSelectedIds([]);
+  },    [selectedVideos, addEpisodesToMyTV]);
 
   // ── Save selected as Playlist ──
 
@@ -507,9 +523,15 @@ export function PlaylistPage() {
                 </button>
                 {selectedIds.length > 0 && (
                   <>
-                    <Button variant="secondary" size="sm" onClick={handleAddToMySongs}>
-                      Add to My Songs
-                    </Button>
+                    {isTVSeriesSource ? (
+                      <Button variant="secondary" size="sm" onClick={handleAddToMyEpisodes}>
+                        Add to My TV Series
+                      </Button>
+                    ) : (
+                      <Button variant="secondary" size="sm" onClick={handleAddToMySongs}>
+                        Add to My Songs
+                      </Button>
+                    )}
                     <Button variant="secondary" size="sm" onClick={handleSaveAsPlaylist}>
                       Save as Playlist
                     </Button>

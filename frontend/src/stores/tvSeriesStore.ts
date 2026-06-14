@@ -163,7 +163,7 @@ export const useTVSeriesStore = create<TVSeriesState>((set, get) => ({
       }
 
       // Populate playlistStore so PlaylistPage renders the playlist
-      usePlaylistStore.getState().setVideos(response.videos);
+      usePlaylistStore.getState().setVideos(response.videos, 'tv-series');
 
       set({
         isGenerating: false,
