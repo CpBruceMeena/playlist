@@ -1,25 +1,25 @@
 package com.playlist.app.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.Alignment
 import com.playlist.app.ui.components.ToastContainer
+import com.playlist.app.ui.downloads.DownloadsScreen
 import com.playlist.app.ui.home.HomeScreen
-import com.playlist.app.ui.singers.SingerSelectScreen
-import com.playlist.app.ui.playlists.PlaylistsScreen
-import com.playlist.app.ui.player.PlayerScreen
-import com.playlist.app.ui.songs.SongsScreen
 import com.playlist.app.ui.merge.MergeScreen
+import com.playlist.app.ui.player.PlayerScreen
+import com.playlist.app.ui.playlists.PlaylistsScreen
+import com.playlist.app.ui.singers.SingerSelectScreen
+import com.playlist.app.ui.songs.SongsScreen
+import com.playlist.app.ui.tvseries.TVSeriesScreen
 
 @Composable
 fun PlaylistNavHost() {
@@ -56,9 +56,29 @@ fun PlaylistNavHost() {
                         )
                     }
 
-                    composable(NavRoutes.SINGERS) {
-                        SingerSelectScreen(
+                    composable(NavRoutes.TV_SERIES) {
+                        TVSeriesScreen(
                             onNavigateToPlayer = {
+                                navController.navigate(NavRoutes.PLAYER)
+                            }
+                        )
+                    }
+
+                    composable(NavRoutes.SONGS) {
+                        SongsScreen(
+                            onNavigateToPlayer = {
+                                navController.navigate(NavRoutes.PLAYER)
+                            }
+                        )
+                    }
+
+                    composable(NavRoutes.MERGED) {
+                        MergeScreen()
+                    }
+
+                    composable(NavRoutes.DOWNLOADS) {
+                        DownloadsScreen(
+                            onNavigateToPlayer = { url, title ->
                                 navController.navigate(NavRoutes.PLAYER)
                             }
                         )
@@ -72,20 +92,18 @@ fun PlaylistNavHost() {
                         )
                     }
 
-                    composable(NavRoutes.PLAYER) {
-                        PlayerScreen()
-                    }
-
-                    composable(NavRoutes.SONGS) {
-                        SongsScreen(
+                    composable(NavRoutes.SINGERS) {
+                        SingerSelectScreen(
                             onNavigateToPlayer = {
                                 navController.navigate(NavRoutes.PLAYER)
                             }
                         )
                     }
 
-                    composable(NavRoutes.MERGE) {
-                        MergeScreen()
+                    composable(NavRoutes.PLAYER) {
+                        PlayerScreen(
+                            onNavigateBack = { navController.popBackStack() }
+                        )
                     }
                 }
 

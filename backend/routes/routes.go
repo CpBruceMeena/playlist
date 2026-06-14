@@ -18,16 +18,18 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient, ca
 	healthHandler := handlers.NewHealthHandler(db)
 	generateHandler := handlers.NewGenerateHandler(db, ytClient, filterService, cacheSvc)
 	singersHandler := handlers.NewSingersHandler(db)
+	tvSeriesHandler := handlers.NewTVSeriesHandler(db, ytClient, filterService, cacheSvc)
+	savedTVSeriesHandler := handlers.NewSavedTVSeriesHandler()
 	playlistHandler := handlers.NewPlaylistHandler(db)
 	songsHandler := handlers.NewSongsHandler()
 	mergeHandler := handlers.NewMergeHandler()
 	downloadHandler := handlers.NewDownloadHandler()
 
 	// Health check (outside v1 for infrastructure probes)
-	r.GET("/api/health", healthHandler.Check)
+	r.GET("/playlist/api/health", healthHandler.Check)
 
-	// API v1 routes
-	v1 := r.Group("/api/v1")
+	// API v1 routes — all prefixed with /playlist/
+	v1 := r.Group("/playlist/api/v1")
 	{
 		v1.POST("/generate", generateHandler.Generate)
 
@@ -36,6 +38,15 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient, ca
 
 		// Multi-singer generation
 		v1.POST("/generate/multi-singer", generateHandler.GenerateMultiSinger)
+
+		// TV Series routes
+		v1.GET("/tv-series", tvSeriesHandler.ListTVSeries)
+		v1.POST("/generate/tv-series", tvSeriesHandler.GenerateTVSeriesPlaylist)
+
+		// Saved TV Series
+		v1.GET("/tv-series/saved", savedTVSeriesHandler.ListSavedTVSeries)
+		v1.POST("/tv-series/saved", savedTVSeriesHandler.ToggleSavedTVSeries)
+		v1.DELETE("/tv-series/saved/:id", savedTVSeriesHandler.DeleteSavedTVSeries)
 
 		// Playlist CRUD
 		v1.POST("/playlists", playlistHandler.SavePlaylist)

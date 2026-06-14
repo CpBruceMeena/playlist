@@ -121,8 +121,8 @@ export const useSingerStore = create<SingerState>((set, get) => ({
   generate: async (filters) => {
     const { selectedSingerIds, customSingerNames, resultsPerSinger } = get();
 
-    if (selectedSingerIds.length + customSingerNames.length < 2) {
-      set({ generationError: "Please select at least 2 singers (DB or custom)" });
+    if (selectedSingerIds.length + customSingerNames.length < 1) {
+      set({ generationError: "Please select at least 1 singer (DB or custom)" });
       return;
     }
 

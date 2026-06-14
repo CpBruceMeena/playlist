@@ -35,14 +35,11 @@ class SingerViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SingerUiState())
     val uiState: StateFlow<SingerUiState> = _uiState.asStateFlow()
 
-    init {
-        loadSingers()
-    }
+    init { loadSingers() }
 
     private fun loadSingers() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-
             val result = singerRepository.listSingers()
             result.fold(
                 onSuccess = { response ->
@@ -54,10 +51,7 @@ class SingerViewModel @Inject constructor(
                     )
                 },
                 onFailure = { error ->
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = error.message ?: "Failed to load singers"
-                    )
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = error.message ?: "Failed to load singers")
                 }
             )
         }
@@ -76,18 +70,11 @@ class SingerViewModel @Inject constructor(
     private fun applyFilters() {
         val state = _uiState.value
         var filtered = state.singers
-
-        if (!state.selectedGenre.isNullOrBlank()) {
-            filtered = filtered.filter { it.genre == state.selectedGenre }
-        }
-
+        if (!state.selectedGenre.isNullOrBlank()) filtered = filtered.filter { it.genre == state.selectedGenre }
         if (state.searchQuery.isNotBlank()) {
-            val query = state.searchQuery.lowercase()
-            filtered = filtered.filter {
-                it.name.lowercase().contains(query) || it.genre.lowercase().contains(query)
-            }
+            val q = state.searchQuery.lowercase()
+            filtered = filtered.filter { it.name.lowercase().contains(q) || it.genre.lowercase().contains(q) }
         }
-
         _uiState.value = _uiState.value.copy(filteredSingers = filtered)
     }
 
@@ -97,9 +84,7 @@ class SingerViewModel @Inject constructor(
             state.selectedSingerIds - singerId
         } else if (state.selectedSingerIds.size < 5) {
             state.selectedSingerIds + singerId
-        } else {
-            return
-        }
+        } else return
         _uiState.value = state.copy(selectedSingerIds = updated)
     }
 
@@ -113,39 +98,30 @@ class SingerViewModel @Inject constructor(
     }
 
     fun removeCustomSinger(name: String) {
-        val state = _uiState.value
-        _uiState.value = state.copy(customSingerNames = state.customSingerNames - name)
+        _uiState.value = _uiState.value.copy(customSingerNames = _uiState.value.customSingerNames - name)
     }
 
     fun generateMultiSinger() {
         val state = _uiState.value
         val total = state.selectedSingerIds.size + state.customSingerNames.size
-        if (total < 2) {
-            _uiState.value = state.copy(error = "Select at least 2 singers")
+        if (total < 1) {
+            _uiState.value = state.copy(error = "Select at least 1 singer")
             return
         }
 
         viewModelScope.launch {
             _uiState.value = state.copy(isGenerating = true, error = null)
-
             val result = singerRepository.generateMultiSinger(
                 singerIds = state.selectedSingerIds,
                 resultsPerSinger = 10,
                 customSingers = state.customSingerNames.ifEmpty { null }
             )
-
             result.fold(
                 onSuccess = { response ->
-                    _uiState.value = _uiState.value.copy(
-                        isGenerating = false,
-                        generatedVideos = response.videos
-                    )
+                    _uiState.value = _uiState.value.copy(isGenerating = false, generatedVideos = response.videos)
                 },
                 onFailure = { error ->
-                    _uiState.value = _uiState.value.copy(
-                        isGenerating = false,
-                        error = error.message ?: "Generation failed"
-                    )
+                    _uiState.value = _uiState.value.copy(isGenerating = false, error = error.message ?: "Generation failed")
                 }
             )
         }

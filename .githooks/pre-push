@@ -1,0 +1,20 @@
+#!/bin/bash
+# pre-push hook: prevent pushes directly to main/master
+# Bypass with: git push --no-verify
+
+while read local_ref local_oid remote_ref remote_oid; do
+  BRANCH=${remote_ref#refs/heads/}
+  if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+    echo ""
+    echo "  ⛔ Pushing directly to '$BRANCH' is not allowed."
+    echo ""
+    echo "     Push your feature branch instead, then open a PR:"
+    echo "       git push origin $(git branch --show-current)"
+    echo "       # Then create a PR on GitHub"
+    echo ""
+    echo "     If you really need to push here (emergency), bypass with:"
+    echo "       git push --no-verify"
+    echo ""
+    exit 1
+  fi
+done

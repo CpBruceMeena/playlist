@@ -194,7 +194,7 @@ def handle_merge():
             "songCount": len(downloaded),
             "duration": int(total_duration),
             "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "videoUrl": f"/api/v1/merged/{output_filename}",
+            "videoUrl": f"/playlist/api/v1/merged/{output_filename}",
         }
 
         meta_path = METADATA_DIR / f"{job_id}.json"
@@ -246,7 +246,7 @@ def handle_merge():
                     "songCount": len(downloaded),
                     "duration": int(total_duration),
                     "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                    "videoUrl": f"/api/v1/merged/{output_filename}",
+                    "videoUrl": f"/playlist/api/v1/merged/{output_filename}",
                 }
 
                 meta_path = METADATA_DIR / f"{job_id}.json"
@@ -402,8 +402,7 @@ def _download_single_video(url: str) -> dict:
         "duration": duration,
         "sourceUrl": url,
         "fileSize": output_path.stat().st_size,
-        "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "downloadUrl": f"/api/v1/downloads/{output_filename}",
+        "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),            "downloadUrl": f"/playlist/api/v1/downloads/{output_filename}",
     }
 
     meta_path = DOWNLOAD_META_DIR / f"{job_id}.json"

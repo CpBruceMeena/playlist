@@ -17,15 +17,26 @@ Go API server built with Gin, GORM, and PostgreSQL.
 ├── config/              # Environment variable loader
 ├── handlers/            # HTTP handler functions
 │   ├── health.go        # Health check endpoint
-│   ├── generate.go      # Playlist generation (YouTube + filters)
+│   ├── generate.go      # Playlist generation (YouTube + filters, multi-singer)
+│   ├── tv_series.go     # TV series listing + episode generation
+│   ├── tv_series_saved.go # Saved TV series (in-memory)
+│   ├── singers.go       # Singer database endpoints
+│   ├── songs.go         # Saved songs (in-memory)
+│   ├── playlists.go     # Playlist CRUD
+│   ├── merge.go         # Video merge proxy
+│   ├── download.go      # Video download proxy
 │   └── response.go      # API response wrapper
 ├── clients/             # External API clients
 │   └── youtube.go       # YouTube Data API v3 with caching
 ├── services/            # Business logic
-│   └── filter.go        # Filter pipeline (duration, keywords, video type)
+│   ├── filter.go        # Filter pipeline (duration, keywords, video type)
+│   ├── cache.go         # YouTube response caching (30 min TTL)
+│   ├── migrate.go       # Auto-migration + seed data
+│   ├── seed_singers.go  # 500+ singer seed data
+│   └── seed_tv_series.go # TV series seed (delegated to Python script)
 ├── middleware/           # HTTP middleware
 │   ├── cors.go          # CORS
-│   └── rate_limiter.go  # 10 req/min per IP
+│   └── rate_limiter.go  # 10 req/min per IP, token bucket
 ├── routes/              # Route registration
 └── structs/             # GORM models + request/response types
 ```
@@ -51,49 +62,29 @@ Go API server built with Gin, GORM, and PostgreSQL.
 
 ## API Endpoints
 
+All routes are prefixed with `/playlist/api/v1/`.
+
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/health` | Health check (includes DB ping) |
-| `POST` | `/api/v1/generate` | Generate playlist from query + filters |
-
-### POST /api/v1/generate
-
-**Request:**
-```json
-{
-  "query": "upbeat indie rock 2023",
-  "filters": {
-    "maxDuration": 300,
-    "minDuration": 60,
-    "videoType": "music",
-    "keywords": ["indie", "rock"],
-    "excludedKeywords": ["live", "cover"],
-    "minViews": 10000,
-    "safeSearch": true
-  },
-  "maxResults": 25
-}
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "videos": [
-      {
-        "id": "dQw4w9WgXcQ",
-        "title": "...",
-        "channelTitle": "...",
-        "thumbnails": { ... },
-        "duration": 212,
-        "viewCount": "1234567",
-        "videoType": "music"
-      }
-    ],
-    "quotaUsed": 102
-  }
-}
-```
+| `GET` | `/playlist/api/health` | Health check (includes DB ping) |
+| `POST` | `generate` | Generate playlist from query + filters |
+| `POST` | `generate/multi-singer` | Generate combined playlist from 1–5 singers |
+| `POST` | `generate/tv-series` | Generate episode playlist for a TV series |
+| `GET` | `tv-series` | List TV series (with channel/search/limit params) |
+| `GET` | `tv-series/saved` | List saved TV series |
+| `POST` | `tv-series/saved` | Toggle save/unsave a TV series |
+| `DELETE` | `tv-series/saved/:id` | Remove a saved TV series |
+| `GET` | `singers` | List singers (with genre/search params) |
+| `POST` | `playlists` | Save a playlist |
+| `GET` | `playlists` | List saved playlists |
+| `GET` | `playlists/:id` | Get a single playlist |
+| `PUT` | `playlists/:id` | Rename a playlist |
+| `DELETE` | `playlists/:id` | Delete a playlist |
+| `POST` | `songs/save` | Save a song to My Songs |
+| `GET` | `songs/saved` | List saved songs |
+| `DELETE` | `songs/saved/:id` | Remove a saved song |
+| `POST` | `merge` | Request video merge (delegates to Python merge server) |
+| `POST` | `downloads` | Request video download via yt-dlp |
 
 ## Environment Variables
 

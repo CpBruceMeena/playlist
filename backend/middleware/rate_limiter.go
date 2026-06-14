@@ -50,7 +50,7 @@ func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Only rate limit API endpoints
-		if c.Request.URL.Path == "/api/health" {
+		if c.Request.URL.Path == "/playlist/api/health" {
 			c.Next()
 			return
 		}

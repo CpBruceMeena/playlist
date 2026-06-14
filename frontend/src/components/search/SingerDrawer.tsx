@@ -52,7 +52,7 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
   if (!open) return null;
 
   const totalSelected = selectedSingerIds.length + customSingerNames.length;
-  const canGenerate = totalSelected >= 2 && totalSelected <= 5;
+  const canGenerate = totalSelected >= 1 && totalSelected <= 5;
   const isGeneratingPlaylist = isGenerating;
 
   return (
@@ -189,7 +189,7 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
 
         {/* Footer */}
         <div className="border-t border-neutral-800 px-5 py-4 space-y-3">
-          {totalSelected >= 2 && (
+          {totalSelected >= 1 && (
             <button
               onClick={handleGenerateCombined}
               disabled={!canGenerate || isGeneratingPlaylist}
@@ -204,7 +204,7 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
                   Generating...
                 </span>
               ) : (
-                `Generate Combined Playlist (${totalSelected} singers)`
+                `${totalSelected > 1 ? `Generate Combined Playlist (${totalSelected} singers)` : 'Generate Playlist (1 singer)'}`
               )}
             </button>
           )}
@@ -212,18 +212,14 @@ export function SingerDrawer({ open, onClose }: SingerDrawerProps) {
           <button
             onClick={onClose}
             className={`w-full rounded-lg py-2.5 text-sm font-medium transition-colors ${
-              totalSelected >= 2
+              totalSelected >= 1
                 ? "border border-neutral-700 bg-neutral-800/50 text-neutral-300 hover:bg-neutral-700 hover:text-white"
-                : totalSelected === 1
-                  ? "border border-neutral-700/50 bg-neutral-800/30 text-neutral-500 cursor-default"
+                : selectedSingerIds.length === 0 && customSingerNames.length === 0
+                  ? "border border-neutral-700 bg-neutral-800/50 text-neutral-300 hover:bg-neutral-700 hover:text-white"
                   : "border border-neutral-700 bg-neutral-800/50 text-neutral-300 hover:bg-neutral-700 hover:text-white"
             }`}
           >
-            {totalSelected >= 2
-              ? "Done"
-              : totalSelected === 1
-                ? "Select at least 2 singers"
-                : "Cancel"}
+            {totalSelected >= 1 ? "Done" : "Cancel"}
           </button>
         </div>
       </div>

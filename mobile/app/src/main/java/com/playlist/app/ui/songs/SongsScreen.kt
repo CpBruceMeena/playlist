@@ -10,14 +10,15 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.MergeType
+import androidx.compose.material.icons.outlined.PlaylistAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,6 +38,62 @@ fun SongsScreen(
     val filteredSongs = viewModel.getFilteredSongs()
     val singers = viewModel.getUniqueSingers()
     val selectedCount = uiState.selectedIds.size
+    var nameDialogText by remember { mutableStateOf("") }
+
+    // Name dialog for save-as-playlist / merge
+    if (uiState.showNameDialog) {
+        val title = when (uiState.nameDialogType) {
+            NameDialogType.SavePlaylist -> "Save as Playlist"
+            NameDialogType.Merge -> "Merge Videos"
+        }
+        val buttonLabel = when (uiState.nameDialogType) {
+            NameDialogType.SavePlaylist -> "Save"
+            NameDialogType.Merge -> "Merge"
+        }
+
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissNameDialog() },
+            title = { Text(title, color = NeonColors.OnSurface) },
+            text = {
+                OutlinedTextField(
+                    value = nameDialogText,
+                    onValueChange = { nameDialogText = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = NeonColors.OnSurface,
+                        unfocusedTextColor = NeonColors.OnSurface,
+                        cursorColor = NeonColors.ElectricViolet,
+                        focusedBorderColor = NeonColors.ElectricViolet,
+                        unfocusedBorderColor = NeonColors.Outline.copy(alpha = 0.3f)
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        when (uiState.nameDialogType) {
+                            NameDialogType.SavePlaylist -> viewModel.saveAsPlaylist(nameDialogText)
+                            NameDialogType.Merge -> viewModel.mergeSelected(nameDialogText)
+                        }
+                        nameDialogText = ""
+                    },
+                    enabled = nameDialogText.isNotBlank()
+                ) {
+                    Text(buttonLabel, color = NeonColors.ElectricViolet)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.dismissNameDialog()
+                    nameDialogText = ""
+                }) {
+                    Text("Cancel", color = NeonColors.OnSurfaceVariant)
+                }
+            },
+            containerColor = NeonColors.SurfaceDark
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -60,6 +117,14 @@ fun SongsScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            if (uiState.isSavingPlaylist || uiState.isMerging) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = NeonColors.ElectricViolet,
+                    trackColor = NeonColors.SurfaceContainer
+                )
+            }
+
             if (uiState.isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -154,13 +219,14 @@ fun SongsScreen(
                 }
 
                 // Bulk action buttons
-                if (selectedCount >= 2) {
+                if (selectedCount >= 1) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 2.dp),
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // Play button
                         OutlinedButton(
                             onClick = {
                                 viewModel.playSelected()
@@ -168,7 +234,8 @@ fun SongsScreen(
                             },
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = NeonColors.NeonCyan
-                            )
+                            ),
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             Icon(
                                 Icons.Filled.PlayArrow,
@@ -177,6 +244,44 @@ fun SongsScreen(
                             )
                             Spacer(Modifier.width(4.dp))
                             Text("Play $selectedCount", style = MaterialTheme.typography.labelSmall)
+                        }
+
+                        // Save as Playlist button
+                        if (selectedCount >= 1) {
+                            OutlinedButton(
+                                onClick = { viewModel.showSavePlaylistDialog() },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = NeonColors.ElectricViolet
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.PlaylistAdd,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text("Save as Playlist", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+
+                        // Merge button
+                        if (selectedCount >= 2) {
+                            OutlinedButton(
+                                onClick = { viewModel.showMergeDialog() },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = NeonColors.NeonCyan
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Merge,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text("Merge", style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
                 }

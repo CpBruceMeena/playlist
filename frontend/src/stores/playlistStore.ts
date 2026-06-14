@@ -2,18 +2,21 @@ import { create } from "zustand";
 import type { YouTubeVideo, FilterCriteria } from "@playlist/types";
 import { generatePlaylist } from "../api/generate";
 
+export type GenerationSource = 'search' | 'tv-series' | 'singer' | null;
+
 interface PlaylistState {
   // Current generation
   videos: YouTubeVideo[];
   isGenerating: boolean;
   error: string | null;
+  generationSource: GenerationSource;
 
   // Session management
   sessionId: string | null;
 
   // Actions
   generate: (query: string, filters: FilterCriteria) => Promise<void>;
-  setVideos: (videos: YouTubeVideo[]) => void;
+  setVideos: (videos: YouTubeVideo[], source?: GenerationSource) => void;
   clearError: () => void;
   clearPlaylist: () => void;
 }
@@ -22,6 +25,7 @@ export const usePlaylistStore = create<PlaylistState>((set) => ({
   videos: [],
   isGenerating: false,
   error: null,
+  generationSource: null,
   sessionId: null,
 
   generate: async (query, filters) => {
@@ -30,7 +34,7 @@ export const usePlaylistStore = create<PlaylistState>((set) => ({
       return;
     }
 
-    set({ isGenerating: true, error: null });
+    set({ isGenerating: true, error: null, generationSource: null });
 
     try {
       const response = await generatePlaylist(query, filters);
@@ -66,6 +70,7 @@ export const usePlaylistStore = create<PlaylistState>((set) => ({
         isGenerating: false,
         error: null,
         sessionId,
+        generationSource: null,
       });
     } catch (err: unknown) {
       const message =
@@ -74,11 +79,11 @@ export const usePlaylistStore = create<PlaylistState>((set) => ({
     }
   },
 
-  setVideos: (videos) => set({ videos }),
+  setVideos: (videos, source) => set({ videos, generationSource: source ?? null }),
 
   clearError: () => set({ error: null }),
 
   clearPlaylist: () => {
-    set({ videos: [], sessionId: null, error: null });
+    set({ videos: [], sessionId: null, error: null, generationSource: null });
   },
 }));
