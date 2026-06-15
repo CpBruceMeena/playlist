@@ -35,7 +35,8 @@ data class MergeSongItem(
 fun MergeOrderDialog(
     songs: List<MergeSongItem>,
     onConfirm: (ordered: List<MergeSongItem>) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onRemove: ((MergeSongItem) -> Unit)? = null
 ) {
     var ordered by remember { mutableStateOf<List<MergeSongItem>>(emptyList()) }
     val orderedIds = ordered.map { it.videoId }.toSet()
@@ -78,29 +79,30 @@ fun MergeOrderDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Selected order
-                if (ordered.isNotEmpty()) {
-                    Text(
-                        text = "Your Order",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = NeonColors.ElectricViolet,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(ordered) { song ->
-                            MergeTile(
-                                title = song.title,
-                                isSelected = true,
-                                orderNumber = ordered.indexOf(song) + 1,
-                                onClick = {
-                                    ordered = ordered.filter { it.videoId != song.videoId }
-                                }
-                            )
-                        }
+            // Selected order
+            if (ordered.isNotEmpty()) {
+                Text(
+                    text = "Your Order",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = NeonColors.ElectricViolet,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(ordered) { song ->
+                        MergeTile(
+                            title = song.title,
+                            isSelected = true,
+                            orderNumber = ordered.indexOf(song) + 1,
+                            onClick = {
+                                ordered = ordered.filter { it.videoId != song.videoId }
+                                onRemove?.invoke(song)
+                            }
+                        )
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
                 }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
                 // Unselected songs
                 if (unselected.isNotEmpty()) {

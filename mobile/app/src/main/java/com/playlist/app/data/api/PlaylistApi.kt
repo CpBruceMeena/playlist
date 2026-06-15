@@ -83,6 +83,20 @@ interface PlaylistApi {
         @Path("id") id: String
     ): Response<Unit>
 
+    // --- Saved TV Series ---
+    @GET("tv-series/saved")
+    suspend fun listSavedTVSeries(): Response<ApiResponseDto<List<SavedTVSeriesDto>>>
+
+    @POST("tv-series/saved")
+    suspend fun toggleSaveTVSeries(
+        @Body request: ToggleSaveTVSeriesRequest
+    ): Response<ApiResponseDto<Map<String, Any>>>
+
+    @DELETE("tv-series/saved/{id}")
+    suspend fun deleteSavedTVSeries(
+        @Path("id") id: String
+    ): Response<Unit>
+
     // --- Downloads ---
     @POST("downloads")
     suspend fun startDownload(

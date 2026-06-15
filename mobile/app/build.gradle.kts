@@ -89,6 +89,10 @@ dependencies {
     // Coil (image loading)
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // Media3 ExoPlayer (for playing downloaded & merged video files)
+    implementation("androidx.media3:media3-exoplayer:1.5.1")
+    implementation("androidx.media3:media3-ui:1.5.1")
+
     // YouTube Player
     implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.1")
 

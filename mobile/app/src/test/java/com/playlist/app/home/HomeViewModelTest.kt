@@ -4,7 +4,9 @@ import app.cash.turbine.test
 import com.playlist.app.data.api.models.FilterCriteriaDto
 import com.playlist.app.data.api.models.GenerateResponseDto
 import com.playlist.app.data.api.models.YouTubeVideoDto
+import com.playlist.app.data.repository.DownloadRepository
 import com.playlist.app.data.repository.GenerateRepository
+import com.playlist.app.data.repository.PlaylistRepository
 import com.playlist.app.data.repository.SingerRepository
 import com.playlist.app.ui.home.HomeViewModel
 import io.mockk.coEvery
@@ -26,12 +28,14 @@ class HomeViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val generateRepository: GenerateRepository = mockk()
     private val singerRepository: SingerRepository = mockk()
+    private val playlistRepository: PlaylistRepository = mockk()
+    private val downloadRepository: DownloadRepository = mockk()
     private lateinit var viewModel: HomeViewModel
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = HomeViewModel(generateRepository, singerRepository)
+        viewModel = HomeViewModel(generateRepository, singerRepository, playlistRepository, downloadRepository)
     }
 
     @After

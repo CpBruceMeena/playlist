@@ -3,6 +3,7 @@ package com.playlist.app.ui.songs
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.playlist.app.data.api.models.*
+import com.playlist.app.data.repository.DownloadRepository
 import com.playlist.app.data.repository.MergeRepository
 import com.playlist.app.data.repository.PlaylistRepository
 import com.playlist.app.data.repository.SongRepository
@@ -37,7 +38,8 @@ enum class NameDialogType {
 class SongsViewModel @Inject constructor(
     private val songRepository: SongRepository,
     private val playlistRepository: PlaylistRepository,
-    private val mergeRepository: MergeRepository
+    private val mergeRepository: MergeRepository,
+    private val downloadRepository: DownloadRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SongsUiState())
@@ -198,6 +200,21 @@ class SongsViewModel @Inject constructor(
                         isMerging = false,
                         error = error.message ?: "Merge failed"
                     )
+                }
+            )
+        }
+    }
+
+    fun downloadSong(song: SavedSongResponseDto) {
+        viewModelScope.launch {
+            val url = "https://www.youtube.com/watch?v=${song.videoId}"
+            val result = downloadRepository.startDownload(url)
+            result.fold(
+                onSuccess = {
+                    SnackbarManager.show("Download started: ${song.title}", ToastType.SUCCESS)
+                },
+                onFailure = { e ->
+                    SnackbarManager.show("Download failed: ${e.message ?: "error"}", ToastType.ERROR)
                 }
             )
         }

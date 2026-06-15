@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -32,6 +33,7 @@ import com.playlist.app.ui.theme.NeonColors
 @Composable
 fun SingerSelectScreen(
     onNavigateToPlayer: () -> Unit,
+    onNavigateBack: () -> Unit = {},
     viewModel: SingerViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -50,13 +52,18 @@ fun SingerSelectScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Singers", color = NeonColors.OnSurface, style = MaterialTheme.typography.titleLarge) },
+                title = { Text("Singers", color = NeonColors.OnSurface, style = MaterialTheme.typography.titleMedium) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = NeonColors.OnSurface)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = NeonColors.DeepObsidian)
             )
         },
         containerColor = NeonColors.DeepObsidian
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             SearchBar(
                 query = uiState.searchQuery,
                 onQueryChange = { viewModel.onSearchQueryChange(it) },
