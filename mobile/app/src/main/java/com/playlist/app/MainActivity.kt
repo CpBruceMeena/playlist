@@ -70,7 +70,10 @@ class MainActivity : ComponentActivity() {
 
                     PlaylistNavHost(
                         externalNavigateToPlayer = navigateToPlayer,
-                        onExternalNavigationHandled = { navigateToPlayer = false }
+                        onExternalNavigationHandled = { navigateToPlayer = false },
+                        songRepository = songRepository,
+                        downloadRepository = downloadRepository,
+                        downloadManager = downloadManager
                     )
 
                     // Share intent bottom sheet

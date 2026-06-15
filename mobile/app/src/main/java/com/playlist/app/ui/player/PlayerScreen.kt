@@ -2,7 +2,10 @@ package com.playlist.app.ui.player
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -14,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Share
@@ -139,7 +143,15 @@ fun PlayerScreen(
                 )
             } else {
                 // ── YouTube Player via WebView ──
-                YouTubePlayerCard(currentVideo = currentVideo)
+                YouTubePlayerCard(
+                    currentVideo = currentVideo,
+                    onOpenYouTube = { videoId ->
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$videoId")).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                    }
+                )
             }
 
             Spacer(Modifier.height(12.dp))
@@ -323,172 +335,241 @@ private fun VideoFilePlayerCard(
     }
 }
 
+/**
+ * JavaScript interface bridge for YouTube IFrame Player API events.
+ * Called from JavaScript in the WebView via Android.onPlayerError() etc.
+ */
+class YouTubeJsBridge(
+    private val onError: (errorCode: Int) -> Unit,
+    private val onStateChange: (state: Int) -> Unit,
+    private val onReady: () -> Unit
+) {
+    private val handler = Handler(Looper.getMainLooper())
+
+    @JavascriptInterface
+    fun onPlayerError(errorCode: Int) {
+        handler.post { onError(errorCode) }
+    }
+
+    @JavascriptInterface
+    fun onPlayerStateChange(state: Int) {
+        handler.post { onStateChange(state) }
+    }
+
+    @JavascriptInterface
+    fun onPlayerReady() {
+        handler.post { onReady() }
+    }
+}
+
 @Composable
-private fun YouTubePlayerCard(currentVideo: YouTubeVideoDto?) {
+private fun YouTubePlayerCard(
+    currentVideo: YouTubeVideoDto?,
+    onOpenYouTube: (videoId: String) -> Unit = {}
+) {
     if (currentVideo == null) return
 
     val videoId = currentVideo.id
+    var playerError by remember { mutableStateOf<Int?>(null) }
+    var playerReady by remember { mutableStateOf(false) }
+    var lastVideoId by remember { mutableStateOf("") }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 9f),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = NeonColors.SurfaceDark)
-    ) {
-        AndroidView(
+    // Reset state when video changes
+    if (lastVideoId != videoId) {
+        lastVideoId = videoId
+        playerError = null
+        playerReady = false
+    }
+
+    Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+        Card(
             modifier = Modifier.fillMaxSize(),
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.loadWithOverviewMode = true
-                    settings.useWideViewPort = true
-                    settings.mediaPlaybackRequiresUserGesture = false
-                    settings.userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36"
-                    settings.allowContentAccess = true
-                    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                    settings.cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
-                    settings.allowFileAccess = true
-
-                    // WebChromeClient is needed for proper media playback
-                    webChromeClient = android.webkit.WebChromeClient()
-
-                    webViewClient = object : android.webkit.WebViewClient() {
-                        override fun onReceivedHttpError(
-                            view: WebView?,
-                            request: android.webkit.WebResourceRequest?,
-                            errorResponse: android.webkit.WebResourceResponse?
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = NeonColors.SurfaceDark)
+        ) {
+            if (playerError != null) {
+                // YouTube embed failed — show fallback UI
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Filled.OpenInNew,
+                            contentDescription = null,
+                            tint = NeonColors.OnSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = "Video unavailable",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = NeonColors.OnSurface
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Playback not available in this app.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = NeonColors.OnSurfaceVariant
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        OutlinedButton(
+                            onClick = { onOpenYouTube(videoId) },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = NeonColors.NeonCyan
+                            ),
+                            shape = RoundedCornerShape(10.dp)
                         ) {
-                            super.onReceivedHttpError(view, request, errorResponse)
-                            android.util.Log.w("YouTubePlayer", "HTTP error loading video: ${errorResponse?.statusCode}")
+                            Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Open in YouTube")
                         }
                     }
+                }
+            } else {
+                // YouTube IFrame Player API embed
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.loadWithOverviewMode = true
+                            settings.useWideViewPort = true
+                            settings.mediaPlaybackRequiresUserGesture = false
+                            settings.userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36"
+                            settings.allowContentAccess = true
+                            settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            settings.cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
+                            settings.allowFileAccess = true
 
-                    // Use the YouTube embed URL via iframe loaded with loadDataWithBaseURL.
-                    // This sets the Referer header to youtube.com, avoiding the "playback id" error.
-                    loadDataWithBaseURL(
-                        "https://www.youtube.com",
-                        buildEmbedHtml(videoId),
-                        "text/html",
-                        "UTF-8",
-                        null
-                    )
-                }
-            },
-            update = { view ->
-                val currentId = currentVideo.id
-                if (view.tag != currentId) {
-                    view.tag = currentId
-                    view.loadDataWithBaseURL(
-                        "https://www.youtube.com",
-                        buildEmbedHtml(currentId),
-                        "text/html",
-                        "UTF-8",
-                        null
-                    )
-                }
+                            webChromeClient = android.webkit.WebChromeClient()
+
+                            // JavaScript bridge for error handling
+                            val bridge = YouTubeJsBridge(
+                                onError = { code ->
+                                    android.util.Log.w("YouTubePlayer", "Player error code: $code")
+                                    playerError = code
+                                },
+                                onStateChange = { state ->
+                                    android.util.Log.d("YouTubePlayer", "Player state: $state")
+                                },
+                                onReady = {
+                                    playerReady = true
+                                }
+                            )
+                            addJavascriptInterface(bridge, "Android")
+
+                            // Load custom HTML with YouTube IFrame Player API
+                            loadDataWithBaseURL(
+                                "https://www.youtube.com",
+                                buildEmbedHtml(videoId),
+                                "text/html",
+                                "UTF-8",
+                                null
+                            )
+                        }
+                    },
+                    update = { view ->
+                        val currentId = currentVideo.id
+                        if (view.tag != currentId) {
+                            view.tag = currentId
+                            playerError = null
+                            playerReady = false
+                            view.loadDataWithBaseURL(
+                                "https://www.youtube.com",
+                                buildEmbedHtml(currentId),
+                                "text/html",
+                                "UTF-8",
+                                null
+                            )
+                        }
+                    }
+                )
             }
-        )
+        }
+
+        // Loading indicator while player initializes
+        if (!playerReady && playerError == null) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    color = NeonColors.ElectricViolet,
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+        }
     }
 }
 
 /**
- * Build an HTML page with a YouTube iframe embed for the given video ID.
- * Uses loadDataWithBaseURL to set the Referer header so YouTube allows playback.
- * Includes JS error detection and fallback URL loading.
+ * Build an HTML page using the YouTube IFrame Player API.
+ * Loaded via loadDataWithBaseURL to set the Referer header.
+ * Communicates errors and state changes to native code via Android.onPlayerError() bridge.
  */
 private fun buildEmbedHtml(videoId: String): String = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-        <style>
-            * { margin: 0; padding: 0; }
-            body { background: #000; overflow: hidden; }
-            .embed-container {
-                position: relative;
-                width: 100vw;
-                height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+    * { margin: 0; padding: 0; }
+    body { background: #000; overflow: hidden; }
+    #player { width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<div id="player"></div>
+<script>
+var tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+var firstScriptTag = document.getElementsByTagName('script')[0];
+firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+var player;
+function onYouTubeIframeAPIReady() {
+    player = new YT.Player('player', {
+        height: '100%',
+        width: '100%',
+        videoId: '$videoId',
+        playerVars: {
+            'autoplay': 1,
+            'playsinline': 1,
+            'rel': 0
+        },
+        events: {
+            'onReady': function(event) {
+                try { Android.onPlayerReady(); } catch(e) {}
+                event.target.playVideo();
+            },
+            'onStateChange': function(event) {
+                try { Android.onPlayerStateChange(event.data); } catch(e) {}
+            },
+            'onError': function(event) {
+                try { Android.onPlayerError(event.data); } catch(e) {}
             }
-            iframe {
-                width: 100%;
-                height: 100%;
-                border: none;
-            }
-            .error-overlay {
-                display: none;
-                position: absolute;
-                top: 0; left: 0; right: 0; bottom: 0;
-                color: #aaa;
-                font-family: sans-serif;
-                text-align: center;
-                padding: 40px 20px;
-                box-sizing: border-box;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-            }
-            .error-overlay.visible {
-                display: flex;
-            }
-            .error-overlay h3 { color: #eee; margin-bottom: 8px; font-size: 16px; }
-            .error-overlay p { font-size: 13px; margin-bottom: 16px; }
-            .error-overlay a {
-                color: #8ab4f8;
-                text-decoration: underline;
-                font-size: 14px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="embed-container" id="container">
-            <iframe id="ytplayer"
-                src="https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&enablejsapi=0&origin=https://www.youtube.com"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowfullscreen>
-            </iframe>
-            <div class="error-overlay" id="errorOverlay">
-                <h3>Video unavailable</h3>
-                <p>This video may not be available for playback in this app.</p>
-                <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank">Open in YouTube</a>
-            </div>
-        </div>
-        <script>
-            // Detect if the iframe loaded successfully after a timeout
-            var iframe = document.getElementById('ytplayer');
-            var overlay = document.getElementById('errorOverlay');
-            setTimeout(function() {
-                try {
-                    // If we can't access the iframe content, assume it loaded (normal for cross-origin)
-                    // Check if the iframe's document has an error indicator
-                    var iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                    if (iframeDoc.body.innerHTML.indexOf('unavailable') !== -1 ||
-                        iframeDoc.body.innerHTML.indexOf('error') !== -1) {
-                        overlay.classList.add('visible');
-                    }
-                } catch(e) {
-                    // Cross-origin: iframe likely loaded fine (normal state)
-                }
-            }, 5000);
-            // Add direct click handler for error overlay link
-            document.addEventListener('click', function(e) {
-                var target = e.target;
-                if (target.tagName === 'A' && target.getAttribute('target') === '_blank') {
-                    e.preventDefault();
-                    window.location.href = target.href;
-                }
-            });
-        </script>
-    </body>
-    </html>
+        }
+    });
+}
+
+// Timeout fallback: if player hasn't reported ready in 10s, treat as error
+setTimeout(function() {
+    try {
+        if (player && player.getPlayerState && player.getPlayerState() === -1) {
+            // Still unstarted after 10s - likely blocked
+            try { Android.onPlayerError(150); } catch(e) {}
+        }
+    } catch(e) {}
+}, 10000);
+</script>
+</body>
+</html>
 """.trimIndent()
 
 @Composable

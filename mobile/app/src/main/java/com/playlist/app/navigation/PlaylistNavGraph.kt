@@ -13,6 +13,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.playlist.app.ApiConfig
 import com.playlist.app.data.api.models.YouTubeVideoDto
+import com.playlist.app.data.repository.DownloadManager
+import com.playlist.app.data.repository.DownloadRepository
+import com.playlist.app.data.repository.SongRepository
 import com.playlist.app.ui.components.ToastContainer
 import com.playlist.app.ui.downloads.DownloadsScreen
 import com.playlist.app.ui.home.HomeScreen
@@ -29,7 +32,10 @@ import com.playlist.app.ui.tvseries.TVSeriesScreen
 @Composable
 fun PlaylistNavHost(
     externalNavigateToPlayer: Boolean = false,
-    onExternalNavigationHandled: () -> Unit = {}
+    onExternalNavigationHandled: () -> Unit = {},
+    songRepository: SongRepository? = null,
+    downloadRepository: DownloadRepository? = null,
+    downloadManager: DownloadManager? = null
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -188,7 +194,10 @@ fun PlaylistNavHost(
 
                     composable(NavRoutes.PLAYER) {
                         PlayerScreen(
-                            onNavigateBack = { navController.popBackStack() }
+                            onNavigateBack = { navController.popBackStack() },
+                            songRepository = songRepository,
+                            downloadRepository = downloadRepository,
+                            downloadManager = downloadManager
                         )
                     }
                 }
