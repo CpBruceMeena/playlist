@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.playlist.app.ApiConfig
 import com.playlist.app.data.api.models.MergedVideoDto
 import com.playlist.app.data.api.models.YouTubeVideoDto
 import com.playlist.app.ui.components.GlassCard
@@ -214,7 +215,7 @@ fun MergeScreen(
                                 val videoUrl = merged.videoUrl ?: merged.url
                                 if (videoUrl != null) {
                                     val fullUrl = if (videoUrl.startsWith("http")) videoUrl
-                                        else "http://10.0.2.2:3001$videoUrl"
+                                        else "${ApiConfig.BASE_URL}$videoUrl"
                                     val title = merged.title ?: merged.name ?: merged.filename ?: "Merged Video"
                                     onPlayMergedVideo?.invoke(fullUrl, title, merged.thumbnailUrl, uiState.mergedVideos)
                                 } else {

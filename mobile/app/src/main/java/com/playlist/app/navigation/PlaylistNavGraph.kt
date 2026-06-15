@@ -11,6 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.playlist.app.ApiConfig
 import com.playlist.app.data.api.models.YouTubeVideoDto
 import com.playlist.app.ui.components.ToastContainer
 import com.playlist.app.ui.downloads.DownloadsScreen
@@ -90,12 +91,11 @@ fun PlaylistNavHost() {
                             onPlayMergedVideo = { url, title, thumbnailUrl, allMerged ->
                                 if (allMerged.size > 1) {
                                     // Build a full queue from all merged videos
-                                    val baseUrl = "http://10.0.2.2:3001"
                                     val queue = allMerged.mapNotNull { m ->
                                         val mu = m.videoUrl ?: m.url ?: return@mapNotNull null
                                         val fullUrl = if (mu.startsWith("http")) mu
-                                            else if (mu.startsWith("/")) "$baseUrl$mu"
-                                            else "$baseUrl/playlist/api/v1/downloads/$mu"
+                                            else if (mu.startsWith("/")) "${ApiConfig.BASE_URL}$mu"
+                                            else "${ApiConfig.BASE_URL}/playlist/api/v1/downloads/$mu"
                                         val mt = m.title ?: m.name ?: m.filename ?: "Merged Video"
                                         VideoFileItem(
                                             url = fullUrl,
@@ -137,11 +137,10 @@ fun PlaylistNavHost() {
                                             navController.navigate(NavRoutes.PLAYER)
                                         }
                                     } else {
-                                        val baseUrl = "http://10.0.2.2:3001"
                                         val queue = allDownloads.map { item ->
                                             val fullUrl = if (item.url.startsWith("http")) item.url
-                                                else if (item.url.startsWith("/")) "$baseUrl${item.url}"
-                                                else "$baseUrl/playlist/api/v1/downloads/${item.url}"
+                                                else if (item.url.startsWith("/")) "${ApiConfig.BASE_URL}${item.url}"
+                                                else "${ApiConfig.BASE_URL}/playlist/api/v1/downloads/${item.url}"
                                             item.copy(url = fullUrl)
                                         }
                                         val startIndex = queue.indexOfFirst { it.title == title }.coerceAtLeast(0)

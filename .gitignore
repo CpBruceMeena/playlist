@@ -67,3 +67,8 @@ mobile/build/
 mobile/local.properties
 mobile/.idea/
 mobile/captures/
+
+# Signing keystore (sensitive - do not commit)
+mobile/app/*.jks
+mobile/app/*.keystore
+mobile/app/keystore.properties
