@@ -75,6 +75,25 @@ class MergeViewModel @Inject constructor(
         }
     }
 
+    fun deleteMergedVideo(id: String) {
+        viewModelScope.launch {
+            val result = mergeRepository.deleteMergedVideo(id)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        mergedVideos = _uiState.value.mergedVideos.filter { it.id != id }
+                    )
+                    com.playlist.app.ui.components.SnackbarManager.show("Merged video deleted", com.playlist.app.ui.components.ToastType.INFO)
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        error = error.message ?: "Failed to delete merged video"
+                    )
+                }
+            )
+        }
+    }
+
     fun clearMessages() {
         _uiState.value = _uiState.value.copy(error = null, mergeSuccess = null)
     }

@@ -1,7 +1,11 @@
 package com.playlist.app.ui.merge
 
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -23,6 +28,8 @@ import com.playlist.app.ApiConfig
 import com.playlist.app.data.api.models.MergedVideoDto
 import com.playlist.app.data.api.models.YouTubeVideoDto
 import com.playlist.app.ui.components.GlassCard
+import com.playlist.app.ui.components.SnackbarManager
+import com.playlist.app.ui.components.ToastType
 import com.playlist.app.ui.player.PlayerState
 import com.playlist.app.ui.theme.NeonColors
 
@@ -30,12 +37,13 @@ import com.playlist.app.ui.theme.NeonColors
 private fun MergedVideoCard(
     merged: MergedVideoDto,
     thumbnailUrl: String? = null,
-    onPlay: () -> Unit
+    onPlay: () -> Unit,
+    onDelete: () -> Unit,
+    onDownloadToDevice: () -> Unit
 ) {
     GlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onPlay)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -50,8 +58,25 @@ private fun MergedVideoCard(
                         .size(56.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(NeonColors.SurfaceDark),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    contentScale = ContentScale.Crop
                 )
+                Spacer(Modifier.width(12.dp))
+            } else {
+                // Placeholder when no thumbnail
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(NeonColors.ElectricVioletContainer.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.VideoLibrary,
+                        contentDescription = null,
+                        tint = NeonColors.ElectricViolet.copy(alpha = 0.5f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
                 Spacer(Modifier.width(12.dp))
             }
 
@@ -90,12 +115,30 @@ private fun MergedVideoCard(
                     )
                 }
             }
-            IconButton(onClick = onPlay) {
-                Icon(
-                    Icons.Filled.PlayArrow,
-                    contentDescription = "Play",
-                    tint = NeonColors.ElectricViolet
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                IconButton(onClick = onDownloadToDevice) {
+                    Icon(
+                        Icons.Filled.Download,
+                        contentDescription = "Download to device",
+                        tint = NeonColors.NeonCyan.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(onClick = onPlay) {
+                    Icon(
+                        Icons.Filled.PlayArrow,
+                        contentDescription = "Play",
+                        tint = NeonColors.ElectricViolet
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Delete",
+                        tint = NeonColors.ErrorRed.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
@@ -110,6 +153,7 @@ fun MergeScreen(
     viewModel: MergeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -232,6 +276,26 @@ fun MergeScreen(
                                     if (videos.isNotEmpty()) {
                                         PlayerState.setQueue(videos)
                                         onNavigateToPlayer()
+                                    }
+                                }
+                            },
+                            onDelete = { viewModel.deleteMergedVideo(merged.id) },
+                            onDownloadToDevice = {
+                                val videoUrl = merged.videoUrl ?: merged.url
+                                if (videoUrl != null) {
+                                    val fullUrl = if (videoUrl.startsWith("http")) videoUrl
+                                        else "${ApiConfig.BASE_URL}$videoUrl"
+                                    try {
+                                        val request = DownloadManager.Request(Uri.parse(fullUrl))
+                                            .setTitle(merged.title ?: merged.filename ?: "Merged Video")
+                                            .setDescription("Downloading merged video...")
+                                            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                                            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "${merged.filename ?: "merged_${merged.id}"}.mp4")
+                                        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                                        downloadManager.enqueue(request)
+                                        com.playlist.app.ui.components.SnackbarManager.show("Download started", com.playlist.app.ui.components.ToastType.SUCCESS)
+                                    } catch (e: Exception) {
+                                        com.playlist.app.ui.components.SnackbarManager.show("Download failed: ${e.message ?: "error"}", com.playlist.app.ui.components.ToastType.ERROR)
                                     }
                                 }
                             }

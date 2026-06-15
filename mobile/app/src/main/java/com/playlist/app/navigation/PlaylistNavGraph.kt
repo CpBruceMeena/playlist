@@ -27,7 +27,10 @@ import com.playlist.app.ui.songs.SongsScreen
 import com.playlist.app.ui.tvseries.TVSeriesScreen
 
 @Composable
-fun PlaylistNavHost() {
+fun PlaylistNavHost(
+    externalNavigateToPlayer: Boolean = false,
+    onExternalNavigationHandled: () -> Unit = {}
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -187,6 +190,16 @@ fun PlaylistNavHost() {
                         PlayerScreen(
                             onNavigateBack = { navController.popBackStack() }
                         )
+                    }
+                }
+
+                // External navigation trigger (from share sheet Play button)
+                LaunchedEffect(externalNavigateToPlayer) {
+                    if (externalNavigateToPlayer) {
+                        navController.navigate(NavRoutes.PLAYER) {
+                            launchSingleTop = true
+                        }
+                        onExternalNavigationHandled()
                     }
                 }
 

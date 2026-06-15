@@ -37,4 +37,17 @@ class MergeRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    suspend fun deleteMergedVideo(id: String): Result<Unit> {
+        return try {
+            val response = api.deleteMergedVideo(id)
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Failed to delete merged video: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

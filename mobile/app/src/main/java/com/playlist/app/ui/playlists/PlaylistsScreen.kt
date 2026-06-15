@@ -15,10 +15,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.playlist.app.ui.components.GlassCard
 import androidx.compose.ui.text.style.TextAlign
 import com.playlist.app.ui.theme.NeonColors
@@ -94,6 +96,7 @@ fun PlaylistsScreen(
                             name = playlist.name,
                             songCount = playlist.videoCount ?: 0,
                             query = playlist.query,
+                            thumbnailUrl = playlist.thumbnailUrl,
                             isPlaying = isPlaying,
                             onClick = {
                                 if (!isPlaying) {
@@ -185,6 +188,7 @@ private fun PlaylistCard(
     name: String,
     songCount: Int,
     query: String,
+    thumbnailUrl: String? = null,
     isPlaying: Boolean = false,
     onClick: () -> Unit,
     onRename: () -> Unit,
@@ -200,6 +204,37 @@ private fun PlaylistCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Thumbnail
+                if (thumbnailUrl != null) {
+                    AsyncImage(
+                        model = thumbnailUrl,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(NeonColors.SurfaceDark),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(Modifier.width(12.dp))
+                } else {
+                    // Placeholder when no thumbnail
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(NeonColors.ElectricVioletContainer.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.LibraryMusic,
+                            contentDescription = null,
+                            tint = NeonColors.ElectricViolet.copy(alpha = 0.5f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                }
+
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = name,
