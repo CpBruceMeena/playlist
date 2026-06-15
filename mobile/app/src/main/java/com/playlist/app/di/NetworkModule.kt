@@ -1,5 +1,6 @@
 package com.playlist.app.di
 
+import com.playlist.app.ApiConfig
 import com.playlist.app.BuildConfig
 import com.playlist.app.data.api.PlaylistApi
 import dagger.Module
@@ -40,7 +41,7 @@ object NetworkModule {
     @Singleton
     fun provideRetrofit(client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("http://10.0.2.2:3001/playlist/api/v1/")
+            .baseUrl(ApiConfig.RETROFIT_BASE_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

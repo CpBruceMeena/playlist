@@ -21,6 +21,17 @@ android {
 
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("playlist-release-key.jks")
+            storePassword = System.getenv("PLAYLIST_STORE_PASSWORD")
+                ?: throw GradleException("PLAYLIST_STORE_PASSWORD env var not set")
+            keyAlias = System.getenv("PLAYLIST_KEY_ALIAS") ?: "playlist-key"
+            keyPassword = System.getenv("PLAYLIST_KEY_PASSWORD")
+                ?: throw GradleException("PLAYLIST_KEY_PASSWORD env var not set")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -28,6 +39,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isMinifyEnabled = false
