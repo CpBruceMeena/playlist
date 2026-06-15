@@ -1,5 +1,18 @@
 # Project State
 
+## ⚡ Superpowers — Development Methodology
+This project uses Superpowers (obra/superpowers) — an agentic skills framework. See `.superpowers/SUPERPOWERS.md` for the full methodology.
+
+**Before any response or action**, check if a superpowers skill applies:
+1. Read `.superpowers/skills/using-superpowers/SKILL.md` first (startup bootstrap)
+2. If brainstorming, planning, or implementation — read the relevant skill before proceeding
+3. Follow the core workflow: Brainstorm → Plan → Execute (TDD) → Review → Finish
+
+**Iron Rules:**
+- No implementation without design approval (brainstorming skill)
+- No production code without a failing test first (TDD skill)
+- No completion claims without fresh verification evidence
+
 ## Git Status
 6ab353a feat: My Songs page, merge ordering dialog, saved songs/merged videos stores, backend merge route, Python merge server, .gitignore cleanup
 6eecb7e fix: merge order dialog starts empty, tap to build order; ignore ui_design/ exports
