@@ -7,12 +7,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.MergeType
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.MergeType
 import androidx.compose.material.icons.outlined.PlaylistAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,12 +30,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.playlist.app.ui.components.SnackbarManager
 import com.playlist.app.ui.components.ToastType
+import androidx.compose.ui.text.style.TextAlign
 import com.playlist.app.ui.theme.NeonColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongsScreen(
     onNavigateToPlayer: () -> Unit = {},
+    onNavigateBack: () -> Unit = {},
     viewModel: SongsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -45,56 +48,44 @@ fun SongsScreen(
 
     // Name dialog for save-as-playlist / merge
     if (uiState.showNameDialog) {
-        val title = when (uiState.nameDialogType) {
-            NameDialogType.SavePlaylist -> "Save as Playlist"
-            NameDialogType.Merge -> "Merge Videos"
-        }
-        val buttonLabel = when (uiState.nameDialogType) {
-            NameDialogType.SavePlaylist -> "Save"
-            NameDialogType.Merge -> "Merge"
-        }
-
+        val isMerge = uiState.nameDialogType == NameDialogType.Merge
+        var nameText by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { viewModel.dismissNameDialog() },
-            title = { Text(title, color = NeonColors.OnSurface) },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = NeonColors.SurfaceDark,
+            title = {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Surface(shape = RoundedCornerShape(16.dp), color = NeonColors.ElectricVioletContainer.copy(alpha = 0.25f), modifier = Modifier.size(56.dp)) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(if (isMerge) Icons.Filled.Merge else Icons.Filled.PlaylistAdd, contentDescription = null, tint = NeonColors.ElectricViolet, modifier = Modifier.size(28.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(if (isMerge) "Merge Videos" else "Save as Playlist", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = NeonColors.OnSurface, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(4.dp))
+                    Text(if (isMerge) "Give your merged video a name" else "Save these songs as a playlist", style = MaterialTheme.typography.bodySmall, color = NeonColors.OnSurfaceVariant, textAlign = TextAlign.Center)
+                }
+            },
             text = {
-                OutlinedTextField(
-                    value = nameDialogText,
-                    onValueChange = { nameDialogText = it },
+                OutlinedTextField(value = nameText, onValueChange = { nameText = it },
                     label = { Text("Name") },
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = NeonColors.OnSurface,
-                        unfocusedTextColor = NeonColors.OnSurface,
-                        cursorColor = NeonColors.ElectricViolet,
-                        focusedBorderColor = NeonColors.ElectricViolet,
-                        unfocusedBorderColor = NeonColors.Outline.copy(alpha = 0.3f)
-                    )
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = NeonColors.OnSurface, unfocusedTextColor = NeonColors.OnSurface, cursorColor = NeonColors.ElectricViolet, focusedBorderColor = NeonColors.ElectricViolet, unfocusedBorderColor = NeonColors.Outline.copy(alpha = 0.3f), unfocusedContainerColor = NeonColors.SurfaceContainer, focusedContainerColor = NeonColors.SurfaceContainer),
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        when (uiState.nameDialogType) {
-                            NameDialogType.SavePlaylist -> viewModel.saveAsPlaylist(nameDialogText)
-                            NameDialogType.Merge -> viewModel.mergeSelected(nameDialogText)
-                        }
-                        nameDialogText = ""
-                    },
-                    enabled = nameDialogText.isNotBlank()
-                ) {
-                    Text(buttonLabel, color = NeonColors.ElectricViolet)
+                Button(onClick = { if (isMerge) viewModel.mergeSelected(nameText) else viewModel.saveAsPlaylist(nameText); viewModel.dismissNameDialog() }, enabled = nameText.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = NeonColors.ElectricViolet, contentColor = NeonColors.DeepObsidian), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+                    Text(if (isMerge) "Merge" else "Save", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    viewModel.dismissNameDialog()
-                    nameDialogText = ""
-                }) {
-                    Text("Cancel", color = NeonColors.OnSurfaceVariant)
+                TextButton(onClick = { viewModel.dismissNameDialog() }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Cancel", color = NeonColors.OnSurfaceVariant, fontWeight = FontWeight.Medium)
                 }
-            },
-            containerColor = NeonColors.SurfaceDark
+            }
         )
     }
 
@@ -108,6 +99,11 @@ fun SongsScreen(
                         color = NeonColors.OnSurface
                     )
                 },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = NeonColors.OnSurface)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = NeonColors.DeepObsidian
                 )
@@ -118,7 +114,7 @@ fun SongsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(top = padding.calculateTopPadding())
         ) {
             if (uiState.isSavingPlaylist || uiState.isMerging) {
                 LinearProgressIndicator(
@@ -332,12 +328,15 @@ fun SongsScreen(
                 }
 
                 // Song grid
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(160.dp),
-                    contentPadding = PaddingValues(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                val songGridState = rememberLazyGridState()
+                Box(Modifier.fillMaxSize()) {
+                    LazyVerticalGrid(
+                        state = songGridState,
+                        columns = GridCells.Adaptive(160.dp),
+                        contentPadding = PaddingValues(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                     items(filteredSongs) { song ->
                         SavedSongTile(
                             title = song.title,
@@ -348,10 +347,12 @@ fun SongsScreen(
                             onDelete = { viewModel.deleteSong(song.id) }
                         )
                     }
+
                 }
             }
         }
     }
+}
 }
 
 @Composable

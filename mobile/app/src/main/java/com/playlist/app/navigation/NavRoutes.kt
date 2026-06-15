@@ -2,6 +2,7 @@ package com.playlist.app.navigation
 
 object NavRoutes {
     const val HOME = "home"
+    const val PROFILE = "profile"
     const val TV_SERIES = "tv_series"
     const val SONGS = "songs"
     const val MERGED = "merged"

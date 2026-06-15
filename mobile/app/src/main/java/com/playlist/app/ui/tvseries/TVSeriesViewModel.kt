@@ -6,6 +6,7 @@ import com.playlist.app.data.api.models.*
 import com.playlist.app.data.repository.DownloadRepository
 import com.playlist.app.data.repository.MergeRepository
 import com.playlist.app.data.repository.PlaylistRepository
+import com.playlist.app.data.repository.SongRepository
 import com.playlist.app.data.repository.TVSeriesRepository
 import com.playlist.app.ui.components.SnackbarManager
 import com.playlist.app.ui.components.ToastType
@@ -46,6 +47,10 @@ data class TVSeriesUiState(
     val nameDialogType: NameDialogType = NameDialogType.SavePlaylist,
     val showDownloadDialog: Boolean = false,
     val videoIdsToDownload: List<String> = emptyList(),
+    val showDownloadProgress: Boolean = false,
+    val downloadProgressMessage: String = "",
+    val downloadProgressTotal: Int = 0,
+    val downloadProgressCompleted: Int = 0,
     val isSaving: Boolean = false,
     val isMerging: Boolean = false
 )
@@ -54,9 +59,22 @@ enum class NameDialogType {
     SavePlaylist, Merge
 }
 
+/**
+ * Tracks TV series episode save counts so Profile screen can display them.
+ */
+object TVSeriesEpisodeTracker {
+    var savedEpisodeCount: Int = 0
+        private set
+
+    fun recordSaved(count: Int) {
+        savedEpisodeCount += count
+    }
+}
+
 @HiltViewModel
 class TVSeriesViewModel @Inject constructor(
     private val tvSeriesRepository: TVSeriesRepository,
+    private val songRepository: SongRepository,
     private val playlistRepository: PlaylistRepository,
     private val mergeRepository: MergeRepository,
     private val downloadRepository: DownloadRepository
@@ -283,6 +301,36 @@ class TVSeriesViewModel @Inject constructor(
         }
     }
 
+    fun saveSelectedToMySongs() {
+        val videos = _uiState.value.generatedVideos
+        val selected = if (_uiState.value.selectedVideoIds.isNotEmpty())
+            videos.filter { it.id in _uiState.value.selectedVideoIds }
+        else
+            videos.take(5)
+        if (selected.isEmpty()) return
+        viewModelScope.launch {
+            var saved = 0
+            selected.forEach { video ->
+                val request = SavedSongVideoDto(
+                    id = video.id,
+                    title = video.title,
+                    channelTitle = video.channelTitle ?: "",
+                    thumbnailUrl = video.thumbnailUrl,
+                    durationSeconds = video.durationSeconds
+                )
+                val result = songRepository.saveSong(video = request, singerName = video.singerName)
+                if (result.isSuccess) saved++
+            }
+            clearVideoSelection()
+            TVSeriesEpisodeTracker.recordSaved(saved)
+            SnackbarManager.show(
+                if (saved == selected.size) "Saved $saved episodes"
+                else "$saved of ${selected.size} episodes saved",
+                if (saved > 0) ToastType.SUCCESS else ToastType.ERROR
+            )
+        }
+    }
+
     // ── Create Playlist from Generated Videos ──────────────────
 
     fun saveAsPlaylist(name: String) {
@@ -403,21 +451,49 @@ class TVSeriesViewModel @Inject constructor(
     }
 
     fun confirmDownload() {
+        val ids = _uiState.value.videoIdsToDownload
+        dismissDownloadDialog()
+        _uiState.value = _uiState.value.copy(
+            showDownloadProgress = true,
+            downloadProgressMessage = "Starting download...",
+            downloadProgressTotal = ids.size,
+            downloadProgressCompleted = 0
+        )
         viewModelScope.launch {
-            val ids = _uiState.value.videoIdsToDownload
-            dismissDownloadDialog()
             var successCount = 0
-            ids.forEach { videoId ->
+            ids.forEachIndexed { index, videoId ->
+                _uiState.value = _uiState.value.copy(
+                    downloadProgressMessage = "Downloading ${index + 1} of ${ids.size}...",
+                    downloadProgressCompleted = index
+                )
                 val url = "https://www.youtube.com/watch?v=$videoId"
                 val result = downloadRepository.startDownload(url)
                 if (result.isSuccess) successCount++
             }
-            if (successCount > 0) {
-                SnackbarManager.show("Downloading $successCount video(s)", ToastType.SUCCESS)
-            } else {
-                SnackbarManager.show("Download failed", ToastType.ERROR)
-            }
+            _uiState.value = _uiState.value.copy(
+                downloadProgressMessage = if (successCount == ids.size)
+                    "All $successCount downloads complete!"
+                else if (successCount > 0)
+                    "$successCount of ${ids.size} downloaded (${
+                        ids.size - successCount} failed)"
+                else
+                    "Download failed. Check your connection.",
+                downloadProgressCompleted = ids.size
+            )
+            kotlinx.coroutines.delay(2000)
+            _uiState.value = _uiState.value.copy(
+                showDownloadProgress = false,
+                downloadProgressMessage = ""
+            )
         }
+    }
+
+    fun clearGenerated() {
+        _uiState.value = _uiState.value.copy(
+            hasGenerated = false,
+            generatedVideos = emptyList(),
+            selectedVideoIds = emptySet()
+        )
     }
 
     fun clearError() { _uiState.value = _uiState.value.copy(error = null) }

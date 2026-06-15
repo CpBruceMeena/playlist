@@ -6,22 +6,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Tv
-import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.LibraryMusic
-import androidx.compose.material.icons.outlined.MusicNote
-import androidx.compose.material.icons.outlined.Tv
-import androidx.compose.material.icons.outlined.VideoLibrary
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -43,34 +37,10 @@ val bottomNavItems = listOf(
         unselectedIcon = Icons.Outlined.Home
     ),
     BottomNavItem(
-        route = NavRoutes.TV_SERIES,
-        label = "TV Series",
-        selectedIcon = Icons.Filled.Tv,
-        unselectedIcon = Icons.Outlined.Tv
-    ),
-    BottomNavItem(
-        route = NavRoutes.SONGS,
-        label = "My Songs",
-        selectedIcon = Icons.Filled.MusicNote,
-        unselectedIcon = Icons.Outlined.MusicNote
-    ),
-    BottomNavItem(
-        route = NavRoutes.MERGED,
-        label = "Merged",
-        selectedIcon = Icons.Filled.VideoLibrary,
-        unselectedIcon = Icons.Outlined.VideoLibrary
-    ),
-    BottomNavItem(
-        route = NavRoutes.DOWNLOADS,
-        label = "Downloads",
-        selectedIcon = Icons.Filled.Download,
-        unselectedIcon = Icons.Outlined.Download
-    ),
-    BottomNavItem(
-        route = NavRoutes.PLAYLISTS,
-        label = "Playlists",
-        selectedIcon = Icons.Filled.LibraryMusic,
-        unselectedIcon = Icons.Outlined.LibraryMusic
+        route = NavRoutes.PROFILE,
+        label = "Profile",
+        selectedIcon = Icons.Filled.Person,
+        unselectedIcon = Icons.Outlined.Person
     )
 )
 
@@ -90,12 +60,19 @@ fun BottomNavBar(navController: NavHostController) {
                     it.route == item.route
                 } == true,
                 onClick = {
-                    navController.navigate(item.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
+                    if (item.route == NavRoutes.HOME) {
+                        // For Home, pop everything and start fresh (clears generated state)
+                        navController.navigate(item.route) {
+                            popUpTo(0) { inclusive = true }
                         }
-                        launchSingleTop = true
-                        restoreState = true
+                    } else {
+                        navController.navigate(item.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 }
             )
@@ -124,20 +101,24 @@ private fun RowScope.AddNavigationBarItem(
                 imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
                 contentDescription = item.label,
                 tint = iconColor,
-                modifier = Modifier.height(22.dp)
+                modifier = Modifier.height(20.dp)
             )
         },
         label = {
             Text(
                 text = item.label,
                 color = textColor,
-                style = MaterialTheme.typography.labelSmall
+                maxLines = 1,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp
+                )
             )
         },
         selected = selected,
         onClick = onClick,
         colors = NavigationBarItemDefaults.colors(
             indicatorColor = NeonColors.ElectricVioletContainer.copy(alpha = 0.3f)
-        )
+        ),
+        modifier = Modifier.height(56.dp)
     )
 }

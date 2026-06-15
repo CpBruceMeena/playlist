@@ -1,11 +1,9 @@
 package com.playlist.app.ui.player
 
 import android.content.Intent
-import android.graphics.Bitmap
+import android.net.Uri
 import android.view.ViewGroup
-import android.webkit.WebChromeClient
 import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,12 +21,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
+import coil.compose.AsyncImage
 import com.playlist.app.data.api.models.SavedSongVideoDto
 import com.playlist.app.data.api.models.YouTubeVideoDto
 import com.playlist.app.data.repository.DownloadRepository
@@ -47,9 +55,16 @@ fun PlayerScreen(
 ) {
     val queue by PlayerState.queue.collectAsState()
     val currentIndex by PlayerState.currentIndex.collectAsState()
+    val videoFileItem by PlayerState.videoFileItem.collectAsState()
+    val videoFileQueue by PlayerState.videoFileQueue.collectAsState()
+    val videoFileIndex by PlayerState.videoFileIndex.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    if (queue.isEmpty()) {
+
+    val isVideoFile = videoFileItem != null
+    val isEmpty = queue.isEmpty() && !isVideoFile
+
+    if (isEmpty) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -80,20 +95,23 @@ fun PlayerScreen(
         return
     }
 
-    val currentVideo = queue.getOrNull(currentIndex) ?: queue.first()
+    val currentVideo = queue.getOrNull(currentIndex)
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Now Playing",
+                        text = if (isVideoFile) "Video Player" else "Now Playing",
                         style = MaterialTheme.typography.titleMedium,
                         color = NeonColors.OnSurface
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = {
+                        if (isVideoFile) PlayerState.clear()
+                        onNavigateBack()
+                    }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = NeonColors.OnSurface)
                     }
                 },
@@ -105,101 +123,31 @@ fun PlayerScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(top = padding.calculateTopPadding())
                 .padding(horizontal = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
 
-            // In-app YouTube player via WebView
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = NeonColors.SurfaceDark)
-            ) {
-                val videoId = currentVideo.id
-
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { ctx ->
-                        WebView(ctx).apply {
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT
-                            )
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            settings.loadWithOverviewMode = true
-                            settings.useWideViewPort = true
-                            settings.mediaPlaybackRequiresUserGesture = false
-
-                            webChromeClient = object : WebChromeClient() {}
-                            webViewClient = object : WebViewClient() {}
-
-                            val embedHtml = """
-                                <!DOCTYPE html>
-                                <html>
-                                <head>
-                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-                                    <style>
-                                        * { margin: 0; padding: 0; box-sizing: border-box; }
-                                        body { background: #000; overflow: hidden; }
-                                        .container { position: relative; width: 100vw; height: 100vh; }
-                                        iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
-                                    </style>
-                                </head>
-                                <body>
-                                    <div class="container">
-                                        <iframe src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                            allowfullscreen>
-                                        </iframe>
-                                    </div>
-                                </body>
-                                </html>
-                            """.trimIndent()
-
-                            loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
-                        }
-                    },
-                    update = { view ->
-                        // Reload if video changes
-                        if (currentVideo.id != videoId) {
-                            val newEmbed = """
-                                <!DOCTYPE html>
-                                <html>
-                                <head>
-                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-                                    <style>
-                                        * { margin: 0; padding: 0; box-sizing: border-box; }
-                                        body { background: #000; overflow: hidden; }
-                                        .container { position: relative; width: 100vw; height: 100vh; }
-                                        iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
-                                    </style>
-                                </head>
-                                <body>
-                                    <div class="container">
-                                        <iframe src="https://www.youtube.com/embed/${currentVideo.id}?autoplay=1&playsinline=1&rel=0&modestbranding=1"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                            allowfullscreen>
-                                        </iframe>
-                                    </div>
-                                </body>
-                                </html>
-                            """.trimIndent()
-                            view.loadDataWithBaseURL("https://www.youtube.com", newEmbed, "text/html", "UTF-8", null)
-                        }
-                    }
+            // Player area — ExoPlayer for video files, YouTube WebView for YouTube videos
+            if (isVideoFile) {
+                // ── Video File Player (ExoPlayer) ──
+                VideoFilePlayerCard(
+                    videoFileItem = videoFileItem!!
                 )
+            } else {
+                // ── YouTube Player via WebView ──
+                YouTubePlayerCard(currentVideo = currentVideo)
             }
 
             Spacer(Modifier.height(12.dp))
 
-            // Song info
+            // Video info
+            val displayTitle = if (isVideoFile) videoFileItem!!.title else currentVideo?.title ?: ""
+            val displayChannel = if (!isVideoFile) (currentVideo?.channelTitle ?: currentVideo?.singerName ?: "") else ""
+
             Text(
-                text = currentVideo.title,
+                text = displayTitle,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = NeonColors.OnSurface,
@@ -208,147 +156,322 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = currentVideo.channelTitle ?: currentVideo.singerName ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = NeonColors.ElectricViolet,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                if (currentVideo.durationSeconds > 0) {
+            if (!isVideoFile) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(
-                        text = formatDuration(currentVideo.durationSeconds),
+                        text = displayChannel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NeonColors.ElectricViolet,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (currentVideo != null && currentVideo.durationSeconds > 0) {
+                        Text(
+                            text = formatDuration(currentVideo.durationSeconds),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NeonColors.OnSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Queue list (only for YouTube mode)
+            if (!isVideoFile) {
+                Text(
+                    text = "Queue (${queue.size} videos)",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = NeonColors.OnSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp)
+                )
+
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    itemsIndexed(queue) { index, video ->
+                        QueueItem(
+                            title = video.title,
+                            channelName = video.channelTitle ?: video.singerName ?: "",
+                            isCurrent = index == currentIndex,
+                            onClick = { PlayerState.setCurrentIndex(index) }
+                        )
+                    }
+                }
+            } else {
+                // ── Queue list for video file mode (other downloads) ──
+                if (videoFileQueue.size > 1) {
+                    Text(
+                        text = "All Downloads (${videoFileQueue.size} videos)",
                         style = MaterialTheme.typography.labelSmall,
-                        color = NeonColors.OnSurfaceVariant
+                        fontWeight = FontWeight.SemiBold,
+                        color = NeonColors.OnSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 4.dp)
                     )
+
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        itemsIndexed(videoFileQueue) { index, item ->
+                            VideoFileQueueItem(
+                                item = item,
+                                isCurrent = index == videoFileIndex,
+                                onClick = { PlayerState.setVideoFileIndex(index) }
+                            )
+                        }
+                    }
+                } else {
+                    Spacer(Modifier.weight(1f))
                 }
             }
 
             Spacer(Modifier.height(8.dp))
 
-            // Queue list
-            Text(
-                text = "Queue (${queue.size} videos)",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = NeonColors.OnSurfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp)
+            // Action buttons row (only for YouTube mode)
+            if (!isVideoFile && currentVideo != null) {
+                YouTubeActionButtons(
+                    currentVideo = currentVideo,
+                    songRepository = songRepository,
+                    downloadRepository = downloadRepository,
+                    context = context,
+                    scope = scope
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoFilePlayerCard(
+    videoFileItem: VideoFileItem
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    // Use videoFileItem as key so ExoPlayer re-creates when switching videos
+    val exoPlayer = remember(videoFileItem.url) {
+        ExoPlayer.Builder(context).build().apply {
+            val mediaItem = MediaItem.fromUri(Uri.parse(videoFileItem.url))
+            setMediaItem(mediaItem)
+            prepare()
+            playWhenReady = true
+        }
+    }
+
+    // Lifecycle-aware pause/resume — key includes url so old ExoPlayer is released on video switch
+    DisposableEffect(lifecycleOwner, videoFileItem.url) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> {
+                    exoPlayer.playWhenReady = false
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    exoPlayer.playWhenReady = true
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            exoPlayer.apply {
+                stop()
+                release()
+            }
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(16f / 9f),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = NeonColors.SurfaceDark)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = exoPlayer
+                        useController = true
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        setShowSubtitleButton(false)
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                    }
+                }
             )
+        }
+    }
+}
 
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                itemsIndexed(queue) { index, video ->
-                    QueueItem(
-                        title = video.title,
-                        channelName = video.channelTitle ?: video.singerName ?: "",
-                        isCurrent = index == currentIndex,
-                        onClick = { PlayerState.setCurrentIndex(index) }
+@Composable
+private fun YouTubePlayerCard(currentVideo: YouTubeVideoDto?) {
+    if (currentVideo == null) return
+
+    val context = LocalContext.current
+    val videoId = currentVideo.id
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(16f / 9f),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = NeonColors.SurfaceDark)
+    ) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
                     )
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = true
+                    settings.mediaPlaybackRequiresUserGesture = false
+                    settings.userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36"
+                    settings.allowContentAccess = true
+                    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                    settings.cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
+
+                    webViewClient = object : android.webkit.WebViewClient() {
+                        override fun onReceivedHttpError(
+                            view: WebView?,
+                            request: android.webkit.WebResourceRequest?,
+                            errorResponse: android.webkit.WebResourceResponse?
+                        ) {
+                            super.onReceivedHttpError(view, request, errorResponse)
+                            android.util.Log.w("YouTubePlayer", "HTTP error loading video: ${errorResponse?.statusCode}")
+                        }
+                    }
+
+                    // Load actual YouTube video page - handles embedding restrictions better
+                    loadUrl("https://m.youtube.com/watch?v=$videoId&autoplay=1&playsinline=1")
+                }
+            },
+            update = { view ->
+                val currentId = currentVideo.id
+                if (view.url?.contains("watch?v=$currentId") != true) {
+                    view.loadUrl("https://m.youtube.com/watch?v=$currentId&autoplay=1&playsinline=1")
                 }
             }
+        )
+    }
+}
 
-            Spacer(Modifier.height(8.dp))
-
-            // Action buttons row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                // Save song button
-                OutlinedButton(
-                    onClick = {
-                        scope.launch {
-                            songRepository?.let { repo ->
-                                val result = repo.saveSong(
-                                    video = SavedSongVideoDto(
-                                        id = currentVideo.id,
-                                        title = currentVideo.title,
-                                        channelTitle = currentVideo.channelTitle ?: "",
-                                        thumbnailUrl = currentVideo.thumbnailUrl,
-                                        duration = currentVideo.duration,
-                                        durationSeconds = currentVideo.durationSeconds
-                                    ),
-                                    singerId = currentVideo.singerId,
-                                    singerName = currentVideo.singerName
-                                )
-                                result.fold(
-                                    onSuccess = { SnackbarManager.show("Song saved!", ToastType.SUCCESS) },
-                                    onFailure = { e ->
-                                        if (e.message?.contains("DUPLICATE") == true) {
-                                            SnackbarManager.show("Song already saved", ToastType.INFO)
-                                        } else {
-                                            SnackbarManager.show("Failed to save: ${e.message ?: "error"}", ToastType.ERROR)
-                                        }
-                                    }
-                                )
-                            } ?: run {
-                                Toast.makeText(context, "Song saved!", Toast.LENGTH_SHORT).show()
+@Composable
+private fun YouTubeActionButtons(
+    currentVideo: YouTubeVideoDto,
+    songRepository: SongRepository?,
+    downloadRepository: DownloadRepository?,
+    context: android.content.Context,
+    scope: kotlinx.coroutines.CoroutineScope
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        // Save song button
+        OutlinedButton(
+            onClick = {
+                scope.launch {
+                    songRepository?.let { repo ->
+                        val result = repo.saveSong(
+                            video = SavedSongVideoDto(
+                                id = currentVideo.id,
+                                title = currentVideo.title,
+                                channelTitle = currentVideo.channelTitle ?: "",
+                                thumbnailUrl = currentVideo.thumbnailUrl,
+                                duration = currentVideo.duration,
+                                durationSeconds = currentVideo.durationSeconds
+                            ),
+                            singerId = currentVideo.singerId,
+                            singerName = currentVideo.singerName
+                        )
+                        result.fold(
+                            onSuccess = { SnackbarManager.show("Song saved!", ToastType.SUCCESS) },
+                            onFailure = { e ->
+                                if (e.message?.contains("DUPLICATE") == true) {
+                                    SnackbarManager.show("Song already saved", ToastType.INFO)
+                                } else {
+                                    SnackbarManager.show("Failed to save: ${e.message ?: "error"}", ToastType.ERROR)
+                                }
                             }
-                        }
-                    },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.NeonCyan),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Icon(Icons.Outlined.BookmarkAdd, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Save", style = MaterialTheme.typography.labelSmall)
+                        )
+                    } ?: run {
+                        Toast.makeText(context, "Song saved!", Toast.LENGTH_SHORT).show()
+                    }
                 }
+            },
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.NeonCyan),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            Icon(Icons.Outlined.BookmarkAdd, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Save", style = MaterialTheme.typography.labelSmall)
+        }
 
-                // Download button
-                OutlinedButton(
-                    onClick = {
-                        scope.launch {
-                            downloadRepository?.let { repo ->
-                                val result = repo.startDownload("https://www.youtube.com/watch?v=${currentVideo.id}")
-                                result.fold(
-                                    onSuccess = { SnackbarManager.show("Download started: ${currentVideo.title}", ToastType.SUCCESS) },
-                                    onFailure = { e -> SnackbarManager.show("Download failed: ${e.message ?: "error"}", ToastType.ERROR) }
-                                )
-                            } ?: run {
-                                Toast.makeText(context, "Download started: ${currentVideo.title}", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.ElectricViolet),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Download", style = MaterialTheme.typography.labelSmall)
+        // Download button
+        OutlinedButton(
+            onClick = {
+                scope.launch {
+                    downloadRepository?.let { repo ->
+                        val result = repo.startDownload("https://www.youtube.com/watch?v=${currentVideo.id}")
+                        result.fold(
+                            onSuccess = { SnackbarManager.show("Download started: ${currentVideo.title}", ToastType.SUCCESS) },
+                            onFailure = { e -> SnackbarManager.show("Download failed: ${e.message ?: "error"}", ToastType.ERROR) }
+                        )
+                    } ?: run {
+                        Toast.makeText(context, "Download started: ${currentVideo.title}", Toast.LENGTH_SHORT).show()
+                    }
                 }
+            },
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.ElectricViolet),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Download", style = MaterialTheme.typography.labelSmall)
+        }
 
-                // Share button
-                OutlinedButton(
-                    onClick = {
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, "https://www.youtube.com/watch?v=${currentVideo.id}")
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share video"))
-                    },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.NeonCyan),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Share", style = MaterialTheme.typography.labelSmall)
+        // Share button
+        OutlinedButton(
+            onClick = {
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, "https://www.youtube.com/watch?v=${currentVideo.id}")
                 }
-            }
+                context.startActivity(Intent.createChooser(shareIntent, "Share video"))
+            },
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.NeonCyan),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Share", style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -410,6 +533,90 @@ private fun QueueItem(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoFileQueueItem(
+    item: VideoFileItem,
+    isCurrent: Boolean,
+    onClick: () -> Unit
+) {
+    val bgColor = if (isCurrent) {
+        NeonColors.ElectricVioletContainer.copy(alpha = 0.15f)
+    } else {
+        NeonColors.SurfaceContainer
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor),
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Thumbnail
+            if (item.thumbnailUrl != null) {
+                AsyncImage(
+                    model = item.thumbnailUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(6.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.width(10.dp))
+            }
+
+            // Play indicator
+            if (isCurrent) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = "Now playing",
+                    tint = NeonColors.ElectricViolet,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .padding(end = 6.dp)
+                )
+            } else {
+                Box(modifier = Modifier.size(24.dp))
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (isCurrent) NeonColors.OnSurface else NeonColors.OnSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (item.duration > 0) {
+                        Text(
+                            text = formatDuration(item.duration),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NeonColors.OnSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                    if (item.fileSize > 0) {
+                        Text(
+                            text = "${item.fileSize / 1024 / 1024}MB",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NeonColors.OnSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
                 }
             }
         }

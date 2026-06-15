@@ -16,6 +16,12 @@ Generate custom YouTube playlists by describing what you want in natural languag
 - **⬇️ Download Videos** — Download any video directly from the player with server-side processing via yt-dlp
 - **▶️ Embedded Player** — Watch videos in-browser with play/pause, next/previous, shuffle, repeat all, seek, and queue management
 - **📱 Android App** — Full-featured native Android app (Jetpack Compose), share intent support
+  - **Queue at bottom** — All downloads/merged files shown as playable queue when playing a video
+  - **Thumbnails, duration & file size** — Rich metadata in queue items
+  - **ExoPlayer lifecycle** — Pauses on app switch, resumes on return
+  - **Back button fixes** — Proper navigation stack handling on all screens
+  - **Loading states** — Spinner overlay on playlist cards while fetching
+  - **Context-aware wording** — Says "episodes" for TV series saves, "songs" for regular saves
 - **🔗 Share Playlists** — Generate shareable links to send your playlists to anyone
 - **⌨️ Keyboard Shortcuts** — Arrow keys, Escape, and more for easy navigation
 - **🎨 Dark Gradient UI** — Modern design with blue-to-purple gradients, smooth animations, and glassmorphism effects

@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
@@ -24,7 +25,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,6 +46,7 @@ fun VideoResultsGrid(
     onLongPress: (String) -> Unit,
     onPlay: () -> Unit,
     onDownload: () -> Unit,
+    onSaveToMySongs: () -> Unit = {},
     onSaveAsPlaylist: () -> Unit,
     onClearSelection: () -> Unit,
     modifier: Modifier = Modifier
@@ -83,37 +84,41 @@ fun VideoResultsGrid(
                     }
                     Spacer(Modifier.height(6.dp))
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         OutlinedButton(
                             onClick = onPlay,
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.NeonCyan),
                             shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Play", style = MaterialTheme.typography.labelSmall)
+                            Spacer(Modifier.width(3.dp))
+                            Text("Play", style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                        }
+                        OutlinedButton(
+                            onClick = onSaveToMySongs,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.ElectricViolet),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Filled.BookmarkAdd, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text("Save", style = MaterialTheme.typography.labelSmall, maxLines = 1)
                         }
                         OutlinedButton(
                             onClick = onDownload,
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.ElectricViolet),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Download", style = MaterialTheme.typography.labelSmall)
-                        }
-                        OutlinedButton(
-                            onClick = onSaveAsPlaylist,
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.NeonCyan),
                             shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Outlined.PlaylistAdd, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Save", style = MaterialTheme.typography.labelSmall)
+                            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text("DL", style = MaterialTheme.typography.labelSmall, maxLines = 1)
                         }
                     }
                 }

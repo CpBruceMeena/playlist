@@ -185,11 +185,35 @@ func (h *PlaylistHandler) GetPlaylist(c *gin.Context) {
 		return
 	}
 
+	// Transform PlaylistVideo to a JSON-friendly format matching the Android YouTubeVideoDto
+	type playlistVideoResponse struct {
+		ID              string `json:"id"`
+		Title           string `json:"title"`
+		ChannelTitle    string `json:"channelTitle"`
+		ChannelID       string `json:"channelId,omitempty"`
+		ThumbnailURL    string `json:"thumbnailUrl,omitempty"`
+		DurationSeconds int    `json:"durationSeconds"`
+		ViewCount       int64  `json:"viewCount"`
+	}
+
+	videoResponses := make([]playlistVideoResponse, 0, len(videos))
+	for _, v := range videos {
+		videoResponses = append(videoResponses, playlistVideoResponse{
+			ID:              v.YoutubeID,
+			Title:           v.Title,
+			ChannelTitle:    v.Channel,
+			ChannelID:       v.ChannelID,
+			ThumbnailURL:    v.Thumbnail,
+			DurationSeconds: v.DurationSeconds,
+			ViewCount:       v.ViewCount,
+		})
+	}
+
 	apiResponse(c, gin.H{
 		"id":        fmt.Sprintf("%d", playlist.ID),
 		"name":      playlist.Name,
 		"query":     playlist.Query,
-		"videos":    videos,
+		"videos":    videoResponses,
 		"createdAt": playlist.CreatedAt,
 	})
 }

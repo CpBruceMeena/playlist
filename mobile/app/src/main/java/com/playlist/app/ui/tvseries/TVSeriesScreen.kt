@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.playlist.app.data.api.models.TVSeriesDto
 import com.playlist.app.ui.components.SearchBar
+import androidx.compose.ui.text.style.TextAlign
 import com.playlist.app.ui.components.VideoResultsGrid
 import com.playlist.app.ui.player.PlayerState
 import com.playlist.app.ui.theme.NeonColors
@@ -31,6 +33,7 @@ import com.playlist.app.ui.theme.NeonColors
 @Composable
 fun TVSeriesScreen(
     onNavigateToPlayer: () -> Unit,
+    onNavigateBack: () -> Unit = {},
     viewModel: TVSeriesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -45,15 +48,47 @@ fun TVSeriesScreen(
 
     // Name dialog for save-as-playlist
     if (uiState.showNameDialog) {
-        NameDialog(
-            title = "Save as Playlist",
-            buttonLabel = "Save",
-            onConfirm = { name -> viewModel.saveAsPlaylist(name) },
-            onDismiss = { viewModel.dismissNameDialog() }
+        var nameText by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissNameDialog() },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = NeonColors.SurfaceDark,
+            title = {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Surface(shape = RoundedCornerShape(16.dp), color = NeonColors.ElectricVioletContainer.copy(alpha = 0.25f), modifier = Modifier.size(56.dp)) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.PlaylistAdd, contentDescription = null, tint = NeonColors.ElectricViolet, modifier = Modifier.size(28.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text("Save as Playlist", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = NeonColors.OnSurface, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Save these episodes as a playlist to access them later", style = MaterialTheme.typography.bodySmall, color = NeonColors.OnSurfaceVariant, textAlign = TextAlign.Center)
+                }
+            },
+            text = {
+                OutlinedTextField(value = nameText, onValueChange = { nameText = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = NeonColors.OnSurface, unfocusedTextColor = NeonColors.OnSurface, cursorColor = NeonColors.ElectricViolet, focusedBorderColor = NeonColors.ElectricViolet, unfocusedBorderColor = NeonColors.Outline.copy(alpha = 0.3f), unfocusedContainerColor = NeonColors.SurfaceContainer, focusedContainerColor = NeonColors.SurfaceContainer),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(onClick = { viewModel.saveAsPlaylist(nameText); viewModel.dismissNameDialog() }, enabled = nameText.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = NeonColors.ElectricViolet, contentColor = NeonColors.DeepObsidian), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+                    Text("Save", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissNameDialog() }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Cancel", color = NeonColors.OnSurfaceVariant, fontWeight = FontWeight.Medium)
+                }
+            }
         )
     }
 
-    // Download dialog
+    // Download confirmation dialog
     if (uiState.showDownloadDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissDownloadDialog() },
@@ -79,10 +114,52 @@ fun TVSeriesScreen(
         )
     }
 
+    // Download progress dialog
+    if (uiState.showDownloadProgress) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Downloading...", color = NeonColors.OnSurface, style = MaterialTheme.typography.titleSmall) },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    CircularProgressIndicator(
+                        color = NeonColors.ElectricViolet,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        text = uiState.downloadProgressMessage,
+                        color = NeonColors.OnSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    if (uiState.downloadProgressTotal > 0) {
+                        Spacer(Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = {
+                                if (uiState.downloadProgressTotal > 0)
+                                    uiState.downloadProgressCompleted.toFloat() / uiState.downloadProgressTotal.toFloat()
+                                else 0f
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = NeonColors.ElectricViolet,
+                            trackColor = NeonColors.SurfaceContainer
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            containerColor = NeonColors.SurfaceDark
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("TV Series", color = NeonColors.OnSurface, style = MaterialTheme.typography.titleMedium) },
+                title = { Text("Saved TV Series", color = NeonColors.OnSurface, style = MaterialTheme.typography.titleMedium) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = NeonColors.OnSurface)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = NeonColors.DeepObsidian)
             )
         },
@@ -90,19 +167,32 @@ fun TVSeriesScreen(
     ) { padding ->
         if (uiState.hasGenerated && uiState.generatedVideos.isNotEmpty()) {
             // ── Show generated episodes with selection mode ──
-            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${uiState.generatedVideos.size} episodes",
+                        text = "${uiState.generatedVideos.size} episodes from ${uiState.selectedSeriesName ?: "selected series"}",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = NeonColors.OnSurface
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.clearGenerated()
+                                viewModel.loadSavedSeries()
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.OnSurfaceVariant),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text("Back to Series", style = MaterialTheme.typography.labelSmall)
+                        }
                         OutlinedButton(
                             onClick = { viewModel.showSavePlaylistDialog() },
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonColors.ElectricViolet),
@@ -123,168 +213,31 @@ fun TVSeriesScreen(
                     onLongPress = { viewModel.toggleVideoSelection(it) },
                     onPlay = { viewModel.playSelected() },
                     onDownload = { viewModel.showDownloadDialog() },
+                    onSaveToMySongs = { viewModel.saveSelectedToMySongs() },
                     onSaveAsPlaylist = { viewModel.showSavePlaylistDialog() },
                     onClearSelection = { viewModel.clearVideoSelection() }
                 )
             }
         } else {
-            // ── Show series list (saved + all) ──
-            val hasSelection = uiState.selectedSeriesId != null || uiState.customSeriesName.isNotBlank()
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                // Compact Search
-                item {
-                    SearchBar(
-                        query = uiState.searchQuery,
-                        onQueryChange = { viewModel.onSearchQueryChange(it) },
-                        onSearch = {},
-                        placeholder = "Search TV series..."
-                    )
-                }
-
-                // Channel filter chips (compact)
-                if (uiState.channels.isNotEmpty()) {
-                    item {
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        ) {
-                            item {
-                                FilterChip(
-                                    selected = uiState.channelFilter == null,
-                                    onClick = { viewModel.onChannelSelect(null) },
-                                    label = { Text("All", style = MaterialTheme.typography.labelSmall) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        containerColor = NeonColors.SurfaceContainer,
-                                        selectedContainerColor = NeonColors.ElectricVioletContainer.copy(alpha = 0.3f)
-                                    )
-                                )
-                            }
-                            items(uiState.channels) { ch ->
-                                FilterChip(
-                                    selected = uiState.channelFilter == ch,
-                                    onClick = { viewModel.onChannelSelect(if (uiState.channelFilter == ch) null else ch) },
-                                    label = { Text(ch, style = MaterialTheme.typography.labelSmall) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        containerColor = NeonColors.SurfaceContainer,
-                                        selectedContainerColor = NeonColors.ElectricVioletContainer.copy(alpha = 0.3f)
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Generation progress
-                if (uiState.isGenerating) {
-                    item {
-                        Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = NeonColors.ElectricViolet, modifier = Modifier.size(28.dp))
-                        }
-                    }
-                }
-
-                // Selection + generate row
-                if (hasSelection) {
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = uiState.selectedSeriesName ?: uiState.customSeriesName,
-                                color = NeonColors.ElectricViolet,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            TextButton(onClick = { viewModel.clearSelection() }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
-                                Text("Clear", color = NeonColors.OnSurfaceVariant, style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
-                }
-
-                if (hasSelection && !uiState.isGenerating) {
-                    item {
-                        Button(
-                            onClick = { viewModel.generatePlaylist(null) },
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonColors.ElectricViolet, contentColor = NeonColors.DeepObsidian),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-                        ) {
-                            Icon(Icons.Filled.Tv, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Generate Episodes", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-
-                // Error
-                uiState.error?.let { error ->
-                    item {
-                        Text(error, color = NeonColors.ErrorRed, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
-                    }
-                }
-
-                // Saved series section
-                if (uiState.savedSeries.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "Saved (${uiState.savedSeries.size})",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = NeonColors.OnSurface,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                        )
-                    }
-
-                    item {
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(uiState.savedSeries) { series ->
-                                SavedSeriesCard(
-                                    series = series,
-                                    isSelected = uiState.selectedSeriesId == series.id,
-                                    onSelect = { viewModel.selectSeries(series.id, series.name) },
-                                    onUnsave = { viewModel.toggleSavedSeries(series) }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // All Series header
-                item {
-                    Text(
-                        text = "All Series",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = NeonColors.OnSurface,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                }
-
-                // Series grid
-                if (uiState.isLoading) {
+            // ── Saved series list ──
+            val tvScrollState = rememberLazyListState()
+            Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
+                LazyColumn(
+                    state = tvScrollState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                if (uiState.isLoading || uiState.isLoadingSaved) {
                     item {
                         Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(color = NeonColors.ElectricViolet)
                         }
                     }
-                } else if (uiState.filteredSeries.isEmpty()) {
+                } else if (uiState.savedSeries.isEmpty()) {
                     item {
                         Box(
-                            modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 48.dp),
+                            modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -292,54 +245,103 @@ fun TVSeriesScreen(
                                     imageVector = Icons.Filled.Tv,
                                     contentDescription = null,
                                     tint = NeonColors.OnSurfaceVariant.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(40.dp)
+                                    modifier = Modifier.size(48.dp)
                                 )
-                                Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(12.dp))
                                 Text(
-                                    text = if (uiState.searchQuery.isNotBlank() || uiState.channelFilter != null)
-                                        "No matches"
-                                    else
-                                        "No series yet",
+                                    text = "No saved TV series",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = NeonColors.OnSurface
                                 )
                                 Spacer(Modifier.height(4.dp))
                                 Text(
-                                    text = if (uiState.searchQuery.isNotBlank())
-                                        "Try a different search"
-                                    else
-                                        "Check back later",
+                                    text = "Browse TV series on the Home page and save your favorites",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = NeonColors.OnSurfaceVariant
+                                    color = NeonColors.OnSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 32.dp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
                             }
                         }
                     }
                 } else {
-                    val gridItems = uiState.filteredSeries.chunked(3)
+                    // Saved series section
+                    item {
+                        Text(
+                            text = "Saved (${uiState.savedSeries.size})",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = NeonColors.OnSurface,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    // Grid layout
+                    val gridItems = uiState.savedSeries.chunked(3)
                     items(gridItems.size) { rowIndex ->
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             gridItems[rowIndex].forEach { series ->
                                 SeriesCard(
                                     series = series,
                                     isSelected = uiState.selectedSeriesId == series.id,
-                                    isSaved = viewModel.isSeriesSaved(series.id),
+                                    isSaved = true,
                                     onSelect = { viewModel.selectSeries(series.id, series.name) },
                                     onToggleSave = { viewModel.toggleSavedSeries(series) },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
                         }
-                        Spacer(Modifier.height(6.dp))
+                    }
+
+                    // Generate button when series selected
+                    val hasSelection = uiState.selectedSeriesId != null
+                    if (hasSelection) {
+                        item {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "Selected: ${uiState.selectedSeriesName}",
+                                color = NeonColors.ElectricViolet,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                        }
+                        if (uiState.isGenerating) {
+                            item {
+                                Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(color = NeonColors.ElectricViolet, modifier = Modifier.size(28.dp))
+                                }
+                            }
+                        } else {
+                            item {
+                                Button(
+                                    onClick = { viewModel.generatePlaylist(null) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = NeonColors.ElectricViolet, contentColor = NeonColors.DeepObsidian),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Filled.Tv, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Generate Episodes", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                        uiState.error?.let { error ->
+                            item {
+                                Text(error, color = NeonColors.ErrorRed, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                            }
+                        }
                     }
                 }
+
             }
         }
     }
+}
 }
 
 @Composable
