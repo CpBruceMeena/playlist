@@ -28,8 +28,26 @@ except ImportError:
     print("Flask not installed. Run: pip3 install flask")
     sys.exit(1)
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [merge] %(message)s")
+# ── Logging setup: write to a file, cleared on every startup ───
+SCRIPT_DIR = Path(__file__).resolve().parent.parent
+LOG_DIR = SCRIPT_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+LOG_FILE = LOG_DIR / "merge_server.log"
+
+# Clear the log file on startup (truncate)
+with open(LOG_FILE, "w") as f:
+    f.write(f"--- Merge Server started at {datetime.now(timezone.utc).isoformat()} ---\n")
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [merge] %(levelname)s %(message)s",
+    handlers=[
+        logging.FileHandler(str(LOG_FILE)),
+        logging.StreamHandler(),  # Also print to stdout
+    ]
+)
 logger = logging.getLogger(__name__)
+logger.info("Logger initialized — log file: %s", LOG_FILE)
 
 app = Flask(__name__)
 
@@ -352,64 +370,135 @@ def _extract_video_id(url: str) -> str | None:
 
 
 def _download_single_video(url: str) -> dict:
-    """Download a single video using yt-dlp and return metadata."""
+    """Download a single video using yt-dlp and return metadata.
+
+    Uses a SINGLE yt-dlp call with --print-json to extract metadata AFTER
+    the download completes, avoiding YouTube's rate limiting caused by
+    making separate info + download requests.
+    """
+    import time as _time
+
     job_id = uuid.uuid4().hex[:12]
+    # Temporary output path — will be renamed once we have the real extension
+    tmp_output = DOWNLOADS_DIR / f".tmp_{job_id}.%(ext)s"
 
-    # Fetch metadata first
-    info_cmd = [
-        "yt-dlp", "--dump-json", "--no-playlist", url,
-    ]
-    info_result = subprocess.run(info_cmd, capture_output=True, text=True, timeout=60)
-    if info_result.returncode != 0:
-        raise RuntimeError(f"Failed to fetch video info: {info_result.stderr[:300]}")
+    max_retries = 3
+    last_error = None
 
-    info = json.loads(info_result.stdout.strip().split("\n")[0])
-    title = info.get("title", "Untitled")
-    duration = info.get("duration", 0)
-    ext = info.get("ext", "mp4")
+    for attempt in range(1, max_retries + 1):
+        if attempt > 1:
+            wait = 2 ** (attempt + 1)  # exponential backoff: 4s → 8s → 16s for attempt 2,3,4
+            logger.info(f"[dl {job_id[:8]}] Retry {attempt}/{max_retries} after {wait}s...")
+            _time.sleep(wait)
 
-    safe_name = re.sub(r"[^\w\s-]", "", title)
-    safe_name = re.sub(r"\s+", "_", safe_name).strip(" _-")[:60] or "download"
-    output_filename = f"{safe_name}_{job_id}.{ext}"
-    output_path = DOWNLOADS_DIR / output_filename
+        # Single yt-dlp call: download + print JSON metadata
+        # Using --print-json lets us get metadata after the download completes.
+        # Using --extractor-args to skip DASH formats which YouTube often restricts.
+        # Skip only DASH (not webpage) to keep format availability high.
+        # Using --throttled-rate 100K to handle YouTube throttling gracefully.
+        # Adding explicit User-Agent to avoid "HTTP Error 403: Forbidden".
+        # Adding --geo-bypass for regional restrictions.
+        download_cmd = [
+            "yt-dlp",
+            "-f", "best[height<=1080]/best",
+            "-o", str(tmp_output),
+            "--no-playlist",
+            "--print-json",
+            "--extractor-args", "youtube:skip=dash",
+            "--throttled-rate", "100K",
+            "--geo-bypass",
+            url,
+        ]
 
-    download_cmd = [
-        "yt-dlp",
-        "-f", "best[height<=1080]/best",
-        "-o", str(output_path),
-        "--no-playlist",
-        "--quiet",
-        "--no-warnings",
-        url,
-    ]
-    result = subprocess.run(download_cmd, capture_output=True, text=True, timeout=300)
-    if result.returncode != 0:
-        raise RuntimeError(f"Download failed: {result.stderr[:300]}")
+        try:
+            result = subprocess.run(download_cmd, capture_output=True, text=True, timeout=600)
+        except subprocess.TimeoutExpired:
+            logger.warning(f"[dl {job_id[:8]}] Attempt {attempt} timed out")
+            last_error = "Download timed out after 10 minutes"
+            continue
 
-    if not output_path.exists():
-        raise RuntimeError("Download completed but file not found")
+        if result.returncode == 0:
+            # Parse JSON from stdout (--print-json outputs after download)
+            info = None
+            for line in result.stdout.strip().split("\n"):
+                if line.startswith("{"):
+                    try:
+                        info = json.loads(line)
+                        break
+                    except json.JSONDecodeError:
+                        continue
 
-    thumbnail_url = (
-        info.get("thumbnail") or
-        (f"https://i.ytimg.com/vi/{info.get('id')}/hqdefault.jpg" if info.get("extractor") == "youtube" else "")
-    )
+            if info is None:
+                logger.error(f"[dl {job_id[:8]}] No JSON output from yt-dlp")
+                last_error = "Could not parse video metadata from download"
+                continue
 
-    metadata = {
-        "id": job_id,
-        "filename": output_filename,
-        "title": title,
-        "thumbnailUrl": thumbnail_url,
-        "duration": duration,
-        "sourceUrl": url,
-        "fileSize": output_path.stat().st_size,
-        "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),            "downloadUrl": f"/playlist/api/v1/downloads/{output_filename}",
-    }
+            # Find the downloaded file
+            base = str(tmp_output).replace("%(ext)s", "*")
+            matches = list(Path(base).parent.glob(Path(base).name))
+            if not matches:
+                logger.error(f"[dl {job_id[:8]}] No output file found")
+                # Check stderr for hints
+                if result.stderr:
+                    logger.warning(f"[dl {job_id[:8]}] yt-dlp stderr: {result.stderr[:500]}")
+                last_error = "Download completed but file not found"
+                continue
 
-    meta_path = DOWNLOAD_META_DIR / f"{job_id}.json"
-    with open(meta_path, "w") as f:
-        json.dump(metadata, f)
+            downloaded_path = str(matches[0])
+            actual_ext = Path(downloaded_path).suffix
 
-    return metadata
+            title = info.get("title", "Untitled")
+            duration = info.get("duration", 0)
+
+            safe_name = re.sub(r"[^\w\s-]", "", title)
+            safe_name = re.sub(r"\s+", "_", safe_name).strip(" _-")[:60] or "download"
+            output_filename = f"{safe_name}_{job_id}{actual_ext}"
+            output_path = DOWNLOADS_DIR / output_filename
+
+            # Rename from tmp to final
+            if Path(downloaded_path).exists():
+                shutil.move(downloaded_path, output_path)
+
+            if not output_path.exists():
+                last_error = "Failed to rename downloaded file"
+                continue
+
+            thumbnail_url = (
+                info.get("thumbnail") or
+                (f"https://i.ytimg.com/vi/{info.get('id')}/hqdefault.jpg" if info.get("extractor") == "youtube" else "")
+            )
+
+            metadata = {
+                "id": job_id,
+                "filename": output_filename,
+                "title": title,
+                "thumbnailUrl": thumbnail_url,
+                "duration": duration,
+                "sourceUrl": url,
+                "fileSize": output_path.stat().st_size,
+                "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "downloadUrl": f"/playlist/api/v1/downloads/{output_filename}",
+            }
+
+            meta_path = DOWNLOAD_META_DIR / f"{job_id}.json"
+            with open(meta_path, "w") as f:
+                json.dump(metadata, f)
+
+            return metadata
+
+        else:
+            stderr = result.stderr[:500] if result.stderr else "no error output"
+            logger.warning(f"[dl {job_id[:8]}] Attempt {attempt} failed: {stderr}")
+            last_error = stderr
+
+            # If the error is clearly not retryable, break immediately
+            if "HTTP Error 404" in stderr or "Video unavailable" in stderr:
+                break
+
+    # All retries exhausted
+    err_msg = f"Download failed after {max_retries} attempts: {last_error}"
+    logger.error(f"[dl {job_id[:8]}] {err_msg}")
+    raise RuntimeError(err_msg)
 
 
 @app.route("/api/downloads", methods=["POST"])

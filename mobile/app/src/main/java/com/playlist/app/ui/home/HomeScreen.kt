@@ -29,6 +29,7 @@ import com.playlist.app.ui.components.FilterPanel
 import com.playlist.app.ui.components.SearchBar
 import com.playlist.app.ui.components.VideoResultsGrid
 import com.playlist.app.ui.theme.NeonColors
+import com.playlist.app.ui.tvseries.ExternalTVSeriesCache
 import androidx.compose.ui.text.style.TextAlign
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -208,7 +209,17 @@ fun HomeScreen(
                     onLongPress = { viewModel.toggleVideoSelection(it) },
                     onPlay = { viewModel.playSelected() },
                     onDownload = { viewModel.showDownloadDialog() },
-                    onSaveToMySongs = { viewModel.saveSelectedToMySongs() },
+                    onSaveToMySongs = {
+                        if (uiState.sourceMode == com.playlist.app.ui.home.SourceMode.TVSeries) {
+                            // Store episodes in cache and navigate to TV Series tab
+                            ExternalTVSeriesCache.episodes = uiState.generatedVideos
+                            ExternalTVSeriesCache.seriesName = uiState.searchQuery
+                            viewModel.clearGenerated()
+                            onNavigateToTVSeries()
+                        } else {
+                            viewModel.saveSelectedToMySongs()
+                        }
+                    },
                     onSaveAsPlaylist = { viewModel.showSavePlaylistDialog() },
                     onClearSelection = { viewModel.clearVideoSelection() }
                 )

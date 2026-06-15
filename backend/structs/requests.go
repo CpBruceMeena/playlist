@@ -127,11 +127,12 @@ type SingerListItem struct {
 
 // PlaylistItem is a single playlist in the list response
 type PlaylistItem struct {
-	ID         uint      `json:"id,string"`
-	Name       string    `json:"name"`
-	Query      string    `json:"query"`
-	VideoCount int       `json:"videoCount"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ID           uint      `json:"id,string"`
+	Name         string    `json:"name"`
+	Query        string    `json:"query"`
+	VideoCount   int       `json:"videoCount"`
+	ThumbnailURL string    `json:"thumbnailUrl,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
 }
 
 // MultiSingerRequest is the request for POST /api/v1/generate/multi-singer

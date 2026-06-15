@@ -3,11 +3,7 @@ package com.playlist.app.ui.tvseries
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.playlist.app.data.api.models.*
-import com.playlist.app.data.repository.DownloadRepository
-import com.playlist.app.data.repository.MergeRepository
-import com.playlist.app.data.repository.PlaylistRepository
-import com.playlist.app.data.repository.SongRepository
-import com.playlist.app.data.repository.TVSeriesRepository
+import com.playlist.app.data.repository.*
 import com.playlist.app.ui.components.SnackbarManager
 import com.playlist.app.ui.components.ToastType
 import com.playlist.app.ui.player.PlayerState
@@ -60,6 +56,16 @@ enum class NameDialogType {
 }
 
 /**
+ * Cache for TV series episodes generated externally (e.g. from Home page's TV Series bottom sheet).
+ * When Home page generates episodes from a TV series and the user taps Save,
+ * the episodes are stored here and TVSeriesScreen picks them up on next composition.
+ */
+object ExternalTVSeriesCache {
+    var episodes: List<YouTubeVideoDto> = emptyList()
+    var seriesName: String = ""
+}
+
+/**
  * Tracks TV series episode save counts so Profile screen can display them.
  */
 object TVSeriesEpisodeTracker {
@@ -77,7 +83,7 @@ class TVSeriesViewModel @Inject constructor(
     private val songRepository: SongRepository,
     private val playlistRepository: PlaylistRepository,
     private val mergeRepository: MergeRepository,
-    private val downloadRepository: DownloadRepository
+    private val downloadManager: DownloadManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TVSeriesUiState())
@@ -85,6 +91,19 @@ class TVSeriesViewModel @Inject constructor(
 
     init {
         loadSeries()
+        // Check for externally cached episodes (from Home page TV Series bottom sheet)
+        if (ExternalTVSeriesCache.episodes.isNotEmpty()) {
+            val cachedEpisodes = ExternalTVSeriesCache.episodes
+            val cachedName = ExternalTVSeriesCache.seriesName
+            ExternalTVSeriesCache.episodes = emptyList()
+            ExternalTVSeriesCache.seriesName = ""
+            _uiState.value = _uiState.value.copy(
+                generatedVideos = cachedEpisodes,
+                hasGenerated = true,
+                selectedSeriesName = cachedName.ifEmpty { "TV Series" },
+                isGenerating = false
+            )
+        }
     }
 
     fun loadSeries() {
@@ -460,24 +479,16 @@ class TVSeriesViewModel @Inject constructor(
             downloadProgressCompleted = 0
         )
         viewModelScope.launch {
-            var successCount = 0
             ids.forEachIndexed { index, videoId ->
                 _uiState.value = _uiState.value.copy(
-                    downloadProgressMessage = "Downloading ${index + 1} of ${ids.size}...",
+                    downloadProgressMessage = "Starting ${index + 1} of ${ids.size}...",
                     downloadProgressCompleted = index
                 )
                 val url = "https://www.youtube.com/watch?v=$videoId"
-                val result = downloadRepository.startDownload(url)
-                if (result.isSuccess) successCount++
+                downloadManager.startDownload(url, "Video $videoId")
             }
             _uiState.value = _uiState.value.copy(
-                downloadProgressMessage = if (successCount == ids.size)
-                    "All $successCount downloads complete!"
-                else if (successCount > 0)
-                    "$successCount of ${ids.size} downloaded (${
-                        ids.size - successCount} failed)"
-                else
-                    "Download failed. Check your connection.",
+                downloadProgressMessage = "All ${ids.size} downloads started — check Downloads tab for progress",
                 downloadProgressCompleted = ids.size
             )
             kotlinx.coroutines.delay(2000)

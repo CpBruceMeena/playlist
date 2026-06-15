@@ -16,6 +16,7 @@ data class PlaylistDto(
     @SerializedName("filters") val filters: FilterCriteriaDto? = null,
     @SerializedName("videos") val videos: List<YouTubeVideoDto>? = null,
     @SerializedName("videoCount") val videoCount: Int? = null,
+    @SerializedName("thumbnailUrl") val thumbnailUrl: String? = null,
     @SerializedName("createdAt") val createdAt: String? = null,
     @SerializedName("updatedAt") val updatedAt: String? = null
 )

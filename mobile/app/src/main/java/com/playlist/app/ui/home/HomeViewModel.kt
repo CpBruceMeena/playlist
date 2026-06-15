@@ -75,7 +75,7 @@ class HomeViewModel @Inject constructor(
     private val generateRepository: GenerateRepository,
     private val singerRepository: SingerRepository,
     private val playlistRepository: PlaylistRepository,
-    private val downloadRepository: DownloadRepository,
+    private val downloadManager: DownloadManager,
     private val tvSeriesRepository: TVSeriesRepository,
     private val songRepository: SongRepository
 ) : ViewModel() {
@@ -501,27 +501,18 @@ class HomeViewModel @Inject constructor(
             downloadProgressCompleted = 0
         )
         viewModelScope.launch {
-            var successCount = 0
             ids.forEachIndexed { index, videoId ->
                 _uiState.value = _uiState.value.copy(
-                    downloadProgressMessage = "Downloading ${index + 1} of ${ids.size}...",
+                    downloadProgressMessage = "Starting ${index + 1} of ${ids.size}...",
                     downloadProgressCompleted = index
                 )
                 val url = "https://www.youtube.com/watch?v=$videoId"
-                val result = downloadRepository.startDownload(url)
-                if (result.isSuccess) successCount++
+                downloadManager.startDownload(url, "Video $videoId")
             }
             _uiState.value = _uiState.value.copy(
-                downloadProgressMessage = if (successCount == ids.size)
-                    "All $successCount downloads complete!"
-                else if (successCount > 0)
-                    "$successCount of ${ids.size} downloaded (${
-                        ids.size - successCount} failed)"
-                else
-                    "Download failed. Check your connection.",
+                downloadProgressMessage = "All ${ids.size} downloads started — check Downloads tab for progress",
                 downloadProgressCompleted = ids.size
             )
-            // Auto-dismiss after 2 seconds
             kotlinx.coroutines.delay(2000)
             _uiState.value = _uiState.value.copy(
                 showDownloadProgress = false,

@@ -39,6 +39,7 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.playlist.app.data.api.models.SavedSongVideoDto
 import com.playlist.app.data.api.models.YouTubeVideoDto
+import com.playlist.app.data.repository.DownloadManager
 import com.playlist.app.data.repository.DownloadRepository
 import com.playlist.app.data.repository.SongRepository
 import com.playlist.app.ui.components.SnackbarManager
@@ -51,7 +52,8 @@ import kotlinx.coroutines.launch
 fun PlayerScreen(
     onNavigateBack: () -> Unit = {},
     songRepository: SongRepository? = null,
-    downloadRepository: DownloadRepository? = null
+    downloadRepository: DownloadRepository? = null,
+    downloadManager: DownloadManager? = null
 ) {
     val queue by PlayerState.queue.collectAsState()
     val currentIndex by PlayerState.currentIndex.collectAsState()
@@ -245,6 +247,7 @@ fun PlayerScreen(
                     currentVideo = currentVideo,
                     songRepository = songRepository,
                     downloadRepository = downloadRepository,
+                    downloadManager = downloadManager,
                     context = context,
                     scope = scope
                 )
@@ -324,7 +327,6 @@ private fun VideoFilePlayerCard(
 private fun YouTubePlayerCard(currentVideo: YouTubeVideoDto?) {
     if (currentVideo == null) return
 
-    val context = LocalContext.current
     val videoId = currentVideo.id
 
     Card(
@@ -351,6 +353,10 @@ private fun YouTubePlayerCard(currentVideo: YouTubeVideoDto?) {
                     settings.allowContentAccess = true
                     settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                     settings.cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
+                    settings.allowFileAccess = true
+
+                    // WebChromeClient is needed for proper media playback
+                    webChromeClient = android.webkit.WebChromeClient()
 
                     webViewClient = object : android.webkit.WebViewClient() {
                         override fun onReceivedHttpError(
@@ -363,25 +369,134 @@ private fun YouTubePlayerCard(currentVideo: YouTubeVideoDto?) {
                         }
                     }
 
-                    // Load actual YouTube video page - handles embedding restrictions better
-                    loadUrl("https://m.youtube.com/watch?v=$videoId&autoplay=1&playsinline=1")
+                    // Use the YouTube embed URL via iframe loaded with loadDataWithBaseURL.
+                    // This sets the Referer header to youtube.com, avoiding the "playback id" error.
+                    loadDataWithBaseURL(
+                        "https://www.youtube.com",
+                        buildEmbedHtml(videoId),
+                        "text/html",
+                        "UTF-8",
+                        null
+                    )
                 }
             },
             update = { view ->
                 val currentId = currentVideo.id
-                if (view.url?.contains("watch?v=$currentId") != true) {
-                    view.loadUrl("https://m.youtube.com/watch?v=$currentId&autoplay=1&playsinline=1")
+                if (view.tag != currentId) {
+                    view.tag = currentId
+                    view.loadDataWithBaseURL(
+                        "https://www.youtube.com",
+                        buildEmbedHtml(currentId),
+                        "text/html",
+                        "UTF-8",
+                        null
+                    )
                 }
             }
         )
     }
 }
 
+/**
+ * Build an HTML page with a YouTube iframe embed for the given video ID.
+ * Uses loadDataWithBaseURL to set the Referer header so YouTube allows playback.
+ * Includes JS error detection and fallback URL loading.
+ */
+private fun buildEmbedHtml(videoId: String): String = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+        <style>
+            * { margin: 0; padding: 0; }
+            body { background: #000; overflow: hidden; }
+            .embed-container {
+                position: relative;
+                width: 100vw;
+                height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            iframe {
+                width: 100%;
+                height: 100%;
+                border: none;
+            }
+            .error-overlay {
+                display: none;
+                position: absolute;
+                top: 0; left: 0; right: 0; bottom: 0;
+                color: #aaa;
+                font-family: sans-serif;
+                text-align: center;
+                padding: 40px 20px;
+                box-sizing: border-box;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }
+            .error-overlay.visible {
+                display: flex;
+            }
+            .error-overlay h3 { color: #eee; margin-bottom: 8px; font-size: 16px; }
+            .error-overlay p { font-size: 13px; margin-bottom: 16px; }
+            .error-overlay a {
+                color: #8ab4f8;
+                text-decoration: underline;
+                font-size: 14px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="embed-container" id="container">
+            <iframe id="ytplayer"
+                src="https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&enablejsapi=0&origin=https://www.youtube.com"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen>
+            </iframe>
+            <div class="error-overlay" id="errorOverlay">
+                <h3>Video unavailable</h3>
+                <p>This video may not be available for playback in this app.</p>
+                <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank">Open in YouTube</a>
+            </div>
+        </div>
+        <script>
+            // Detect if the iframe loaded successfully after a timeout
+            var iframe = document.getElementById('ytplayer');
+            var overlay = document.getElementById('errorOverlay');
+            setTimeout(function() {
+                try {
+                    // If we can't access the iframe content, assume it loaded (normal for cross-origin)
+                    // Check if the iframe's document has an error indicator
+                    var iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (iframeDoc.body.innerHTML.indexOf('unavailable') !== -1 ||
+                        iframeDoc.body.innerHTML.indexOf('error') !== -1) {
+                        overlay.classList.add('visible');
+                    }
+                } catch(e) {
+                    // Cross-origin: iframe likely loaded fine (normal state)
+                }
+            }, 5000);
+            // Add direct click handler for error overlay link
+            document.addEventListener('click', function(e) {
+                var target = e.target;
+                if (target.tagName === 'A' && target.getAttribute('target') === '_blank') {
+                    e.preventDefault();
+                    window.location.href = target.href;
+                }
+            });
+        </script>
+    </body>
+    </html>
+""".trimIndent()
+
 @Composable
 private fun YouTubeActionButtons(
     currentVideo: YouTubeVideoDto,
     songRepository: SongRepository?,
     downloadRepository: DownloadRepository?,
+    downloadManager: DownloadManager?,
     context: android.content.Context,
     scope: kotlinx.coroutines.CoroutineScope
 ) {
@@ -435,15 +550,19 @@ private fun YouTubeActionButtons(
         // Download button
         OutlinedButton(
             onClick = {
-                scope.launch {
-                    downloadRepository?.let { repo ->
-                        val result = repo.startDownload("https://www.youtube.com/watch?v=${currentVideo.id}")
-                        result.fold(
-                            onSuccess = { SnackbarManager.show("Download started: ${currentVideo.title}", ToastType.SUCCESS) },
-                            onFailure = { e -> SnackbarManager.show("Download failed: ${e.message ?: "error"}", ToastType.ERROR) }
-                        )
-                    } ?: run {
-                        Toast.makeText(context, "Download started: ${currentVideo.title}", Toast.LENGTH_SHORT).show()
+                downloadManager?.let { dm ->
+                    dm.startDownload("https://www.youtube.com/watch?v=${currentVideo.id}", currentVideo.title)
+                } ?: run {
+                    scope.launch {
+                        downloadRepository?.let { repo ->
+                            val result = repo.startDownload("https://www.youtube.com/watch?v=${currentVideo.id}")
+                            result.fold(
+                                onSuccess = { SnackbarManager.show("Download started: ${currentVideo.title}", ToastType.SUCCESS) },
+                                onFailure = { e -> SnackbarManager.show("Download failed: ${e.message ?: "error"}", ToastType.ERROR) }
+                            )
+                        } ?: run {
+                            Toast.makeText(context, "Download started: ${currentVideo.title}", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             },

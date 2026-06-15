@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,8 +16,9 @@ import (
 )
 
 const (
-	downloadTimeout = 10 * time.Minute
-	downloadServerBase      = "http://localhost:5002"
+	downloadTimeout    = 10 * time.Minute
+	downloadServerBase = "http://localhost:5002"
+	maxRetries         = 3
 )
 
 // DownloadHandler proxies download requests to the Python merge server (also on port 5002)
@@ -32,7 +34,62 @@ func NewDownloadHandler() *DownloadHandler {
 	}
 }
 
-// StartDownload proxies POST /api/downloads to Python server
+// proxyWithRetry sends an HTTP request to the merge server with retries.
+// Returns the response body, HTTP status, and any error after all retries.
+func (h *DownloadHandler) proxyWithRetry(method, url string, body []byte, ctxTimeout time.Duration) ([]byte, int, error) {
+	var lastErr error
+	var lastStatusCode int
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		var reader io.Reader
+		if body != nil {
+			reader = bytes.NewReader(body)
+		}
+
+		req, err := http.NewRequest(method, url, reader)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to create request: %w", err)
+			break
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		// Use a per-attempt context with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), ctxTimeout)
+		req = req.WithContext(ctx)
+
+		resp, err := h.client.Do(req)
+		cancel()
+
+		if err != nil {
+			lastErr = fmt.Errorf("request failed: %w", err)
+			if attempt < maxRetries {
+				wait := time.Duration(1<<uint(attempt)) * time.Second // 2s, 4s, 8s
+				log.Printf("[retry] Attempt %d/%d failed, retrying in %v: %v", attempt, maxRetries, wait, err)
+				time.Sleep(wait)
+			}
+			continue
+		}
+		defer resp.Body.Close()
+
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			lastErr = fmt.Errorf("failed to read response: %w", readErr)
+			if attempt < maxRetries {
+				wait := time.Duration(1<<uint(attempt)) * time.Second
+				log.Printf("[retry] Attempt %d/%d read failed, retrying in %v: %v", attempt, maxRetries, wait, readErr)
+				time.Sleep(wait)
+			}
+			continue
+		}
+
+		// Success
+		return respBody, resp.StatusCode, nil
+	}
+
+	return nil, lastStatusCode, fmt.Errorf("all %d retries exhausted: %w", maxRetries, lastErr)
+}
+
+// StartDownload proxies POST /api/downloads to Python server with retry logic
 func (h *DownloadHandler) StartDownload(c *gin.Context) {
 	var req structs.DownloadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -48,28 +105,12 @@ func (h *DownloadHandler) StartDownload(c *gin.Context) {
 	}
 
 	proxyURL := downloadServerBase + "/api/downloads"
-	proxyReq, err := http.NewRequestWithContext(c.Request.Context(), "POST", proxyURL, bytes.NewReader(body))
+	respBody, statusCode, err := h.proxyWithRetry("POST", proxyURL, body, downloadTimeout)
 	if err != nil {
-		log.Printf("Failed to create download proxy request: %v", err)
-		apiServerError(c, fmt.Errorf("internal error"))
-		return
-	}
-	proxyReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := h.client.Do(proxyReq)
-	if err != nil {
-		log.Printf("Download server request failed: %v", err)
+		log.Printf("Download proxy failed after retries: %v", err)
 		apiError(c, http.StatusServiceUnavailable,
-			"Download server is unavailable. Make sure the Python merge server is running on port 5002.",
+			"Download server is unavailable after retries. Make sure the Python merge server is running on port 5002.",
 			"SERVER_UNAVAILABLE")
-		return
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("Failed to read download server response: %v", err)
-		apiServerError(c, fmt.Errorf("internal error"))
 		return
 	}
 
@@ -88,7 +129,7 @@ func (h *DownloadHandler) StartDownload(c *gin.Context) {
 	}
 
 	if proxyResponse.Error != nil {
-		apiError(c, resp.StatusCode, proxyResponse.Error.Message, proxyResponse.Error.Code)
+		apiError(c, statusCode, proxyResponse.Error.Message, proxyResponse.Error.Code)
 		return
 	}
 

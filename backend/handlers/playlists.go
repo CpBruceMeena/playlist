@@ -128,15 +128,16 @@ func (h *PlaylistHandler) ListPlaylists(c *gin.Context) {
 		return
 	}
 
-	// Use a left join to count videos in a single query (avoids N+1)
-	type playlistWithCount struct {
+	// Use a left join to count videos and grab the first video thumbnail in a single query
+	type playlistWithThumbnail struct {
 		structs.Playlist
-		VideoCount int64 `gorm:"column:video_count"`
+		VideoCount   int64  `gorm:"column:video_count"`
+		ThumbnailURL string `gorm:"column:first_thumbnail"`
 	}
 
-	var results []playlistWithCount
+	var results []playlistWithThumbnail
 	h.DB.Model(&structs.Playlist{}).
-		Select("playlists.*, COUNT(playlist_videos.id) AS video_count").
+		Select("playlists.*, COUNT(playlist_videos.id) AS video_count, MIN(playlist_videos.thumbnail) AS first_thumbnail").
 		Joins("LEFT JOIN playlist_videos ON playlist_videos.playlist_id = playlists.id").
 		Group("playlists.id").
 		Order("playlists.created_at desc").
@@ -146,11 +147,12 @@ func (h *PlaylistHandler) ListPlaylists(c *gin.Context) {
 	items := make([]structs.PlaylistItem, 0, len(results))
 	for _, r := range results {
 		items = append(items, structs.PlaylistItem{
-			ID:         r.ID,
-			Name:       r.Name,
-			Query:      r.Query,
-			VideoCount: int(r.VideoCount),
-			CreatedAt:  r.CreatedAt,
+			ID:           r.ID,
+			Name:         r.Name,
+			Query:        r.Query,
+			VideoCount:   int(r.VideoCount),
+			ThumbnailURL: r.ThumbnailURL,
+			CreatedAt:    r.CreatedAt,
 		})
 	}
 
