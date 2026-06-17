@@ -174,6 +174,19 @@ type MergeResponse struct {
 	Status    string `json:"status"`
 }
 
+// RenderOptions are optional settings for the render pipeline
+type RenderOptions struct {
+	Grade   string `json:"grade"`
+	Quality string `json:"quality"`
+}
+
+// RenderRequest is the request for POST /api/v1/render
+type RenderRequest struct {
+	Videos  []MergeVideoRequest `json:"videos" binding:"required,min=1"`
+	Options *RenderOptions      `json:"options,omitempty"`
+	Name    string              `json:"name,omitempty"`
+}
+
 // APIError represents a standard error response
 type APIError struct {
 	Error APIErrorDetail `json:"error"`

@@ -31,6 +31,11 @@ const NAV_ITEMS = [
     icon: "M22 11.08V12a10 10 0 1 1-5.93-9.14",
   },
   {
+    to: "/polished",
+    label: "Polished",
+    icon: "M12 2l2.4 7.2L22 9.2l-5.4 4.2 2 7.6-6.6-4.6-6.6 4.6 2-7.6L2 9.2l7.6-1z",
+  },
+  {
     to: "/downloads",
     label: "Downloads",
     icon: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3",

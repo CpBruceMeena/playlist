@@ -9,6 +9,7 @@ const PlaylistPage = lazy(() => import("./pages/PlaylistPage").then((m) => ({ de
 const MyPlaylistsPage = lazy(() => import("./pages/MyPlaylistsPage").then((m) => ({ default: m.MyPlaylistsPage })));
 const MySongsPage = lazy(() => import("./pages/MySongsPage").then((m) => ({ default: m.MySongsPage })));
 const MergedVideosPage = lazy(() => import("./pages/MergedVideosPage").then((m) => ({ default: m.MergedVideosPage })));
+const PolishedVideosPage = lazy(() => import("./pages/PolishedVideosPage").then((m) => ({ default: m.PolishedVideosPage })));
 const TVSeriesPage = lazy(() => import("./pages/TVSeriesPage").then((m) => ({ default: m.TVSeriesPage })));
 const DownloadsPage = lazy(() => import("./pages/DownloadsPage").then((m) => ({ default: m.DownloadsPage })));
 const SharedPlaylistPage = lazy(() => import("./pages/SharedPlaylistPage").then((m) => ({ default: m.SharedPlaylistPage })));
@@ -36,6 +37,7 @@ export default function App() {
               <Route path="/my-songs" element={<MySongsPage />} />
               <Route path="/my-playlists" element={<MyPlaylistsPage />} />
               <Route path="/merged-videos" element={<MergedVideosPage />} />
+              <Route path="/polished" element={<PolishedVideosPage />} />
               <Route path="/downloads" element={<DownloadsPage />} />
               <Route path="/p/:shareId" element={<SharedPlaylistPage />} />
             </Routes>

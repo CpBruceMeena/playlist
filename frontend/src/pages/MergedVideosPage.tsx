@@ -5,7 +5,7 @@ import { EmptyState } from "../components/feedback/EmptyState";
 import { Spinner } from "../components/ui/Spinner";
 import { VideoPlayerModal } from "../components/player/VideoPlayerModal";
 import { useMergedVideosStore, type MergeJob } from "../stores/mergedVideosStore";
-import { listMergedVideos, deleteMergedVideo } from "../api/merge";
+import { listMergedVideos, deleteMergedVideo, renderVideos } from "../api/merge";
 import { startDownload } from "../api/downloads";
 import { triggerBrowserDownload } from "../api/browserDownload";
 import type { MergedVideo } from "@playlist/types";
@@ -32,14 +32,18 @@ function formatDate(iso: string): string {
 
 const MergedVideoTile = memo(function MergedVideoTile({
   video,
+  isRendering,
   onPlay,
   onDelete,
   onDownload,
+  onPolish,
 }: {
   video: MergedVideo;
+  isRendering?: boolean;
   onPlay: () => void;
   onDelete: () => void;
   onDownload?: () => void;
+  onPolish?: () => void;
 }) {
   const thumbnailSrc = video.thumbnailUrl ||
     (video.songs[0]?.id ? `https://i.ytimg.com/vi/${video.songs[0].id}/hqdefault.jpg` : null);
@@ -85,24 +89,52 @@ const MergedVideoTile = memo(function MergedVideoTile({
           {formatDuration(video.duration)}
         </div>
 
-        {/* Download button — visible on hover */}
-        {onDownload && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDownload();
-            }}
-            className="absolute bottom-1.5 left-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-md bg-black/80 text-neutral-300 backdrop-blur-sm transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-white/10 hover:text-white"
-            aria-label={`Download ${video.title}`}
-            title="Download"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-          </button>
-        )}
+        {/* Action buttons — visible on hover */}
+        <div className="absolute bottom-1.5 left-1.5 z-10 flex gap-1.5">
+          {/* Polish for YouTube button */}
+          {onPolish && !isRendering && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPolish();
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-md bg-black/80 text-purple-300 backdrop-blur-sm transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-purple-600/30 hover:text-purple-200"
+              aria-label="Polish for YouTube"
+              title="Polish for YouTube — re-render with fades, grading & loudness normalization"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2l2.4 7.2L22 9.2l-5.4 4.2 2 7.6-6.6-4.6-6.6 4.6 2-7.6L2 9.2l7.6-1z" />
+              </svg>
+            </button>
+          )}
+          {/* Rendering spinner */}
+          {isRendering && (
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-purple-600/30 backdrop-blur-sm">
+              <svg className="h-4 w-4 animate-spin text-purple-300" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            </div>
+          )}
+          {/* Download button */}
+          {onDownload && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownload();
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-md bg-black/80 text-neutral-300 backdrop-blur-sm transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-white/10 hover:text-white"
+              aria-label={`Download ${video.title}`}
+              title="Download"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
+          )}
+        </div>
 
         {/* Hover play overlay */}
         <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-200 group-hover:bg-black/30">
@@ -211,6 +243,29 @@ export function MergedVideosPage() {
 
   // Video player modal state
   const [playerVideo, setPlayerVideo] = useState<MergedVideo | null>(null);
+
+  // Polish for YouTube state (brief spinner before navigation)
+  const [renderingVideoId, setRenderingVideoId] = useState<string | null>(null);
+
+  // Polish for YouTube handler — triggers async render, navigates to polished tab
+  const handlePolishForYouTube = useCallback(async (video: MergedVideo) => {
+    if (!video.songs || video.songs.length === 0) return;
+    setRenderingVideoId(video.id);
+    try {
+      const songs = video.songs.map((s) => ({
+        id: s.id,
+        title: s.title,
+        url: "",
+      }));
+      await renderVideos(songs, { grade: "auto", quality: "final" }, video.title);
+      // Navigate to polished tab — render is processing in background
+      navigate("/polished");
+    } catch (err) {
+      console.error("Render failed:", err);
+    } finally {
+      setRenderingVideoId(null);
+    }
+  }, [navigate]);
 
   useEffect(() => {
     async function fetchMergedVideos() {
@@ -327,9 +382,11 @@ export function MergedVideosPage() {
                     <MergedVideoTile
                       key={video.id}
                       video={video}
+                      isRendering={renderingVideoId === video.id}
                       onPlay={() => handlePlayMergedVideo(video)}
                       onDelete={() => handleDeleteMergedVideo(video)}
                       onDownload={() => handleDownloadMergedVideo(video)}
+                      onPolish={() => handlePolishForYouTube(video)}
                     />
                   ))}
                 </div>

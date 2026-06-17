@@ -138,6 +138,104 @@ func (h *MergeHandler) ListMergedVideos(c *gin.Context) {
 
 	c.Data(resp.StatusCode, "application/json", respBody)
 }
+// Render proxies a render request to the Python merge server's render pipeline
+func (h *MergeHandler) Render(c *gin.Context) {
+	var req structs.RenderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apiError(c, http.StatusBadRequest, "Invalid request: "+err.Error(), "INVALID_REQUEST")
+		return
+	}
+
+	// Forward the request to the Python merge server's render endpoint
+	body, err := json.Marshal(req)
+	if err != nil {
+		log.Printf("Failed to marshal render request: %v", err)
+		apiServerError(c, fmt.Errorf("internal error"))
+		return
+	}
+
+	proxyURL := mergeServerBase + "/api/v1/render"
+	proxyReq, err := http.NewRequestWithContext(c.Request.Context(), "POST", proxyURL, bytes.NewReader(body))
+	if err != nil {
+		log.Printf("Failed to create render proxy request: %v", err)
+		apiServerError(c, fmt.Errorf("internal error"))
+		return
+	}
+	proxyReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := h.client.Do(proxyReq)
+	if err != nil {
+		log.Printf("Render server request failed: %v", err)
+		apiError(c, http.StatusServiceUnavailable,
+			"Render server is unavailable. Make sure the Python merge server is running on port 5002.",
+			"RENDER_SERVER_UNAVAILABLE")
+		return
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Failed to read render server response: %v", err)
+		apiServerError(c, fmt.Errorf("internal error"))
+		return
+	}
+
+	var proxyResponse struct {
+		Data  *structs.MergeResponse `json:"data,omitempty"`
+		Error *struct {
+			Message string `json:"message"`
+			Code    string `json:"code"`
+		} `json:"error,omitempty"`
+	}
+
+	if err := json.Unmarshal(respBody, &proxyResponse); err != nil {
+		log.Printf("Failed to parse render server response: %v", err)
+		apiServerError(c, fmt.Errorf("internal error"))
+		return
+	}
+
+	if proxyResponse.Error != nil {
+		apiError(c, resp.StatusCode, proxyResponse.Error.Message, proxyResponse.Error.Code)
+		return
+	}
+
+	if proxyResponse.Data != nil {
+		apiResponse(c, proxyResponse.Data)
+		return
+	}
+
+	apiServerError(c, fmt.Errorf("unexpected response from render server"))
+}
+
+// ListRenderedVideos lists only render/polish outputs by proxying to the Python merge server
+func (h *MergeHandler) ListRenderedVideos(c *gin.Context) {
+	proxyURL := mergeServerBase + "/api/v1/rendered"
+	proxyReq, err := http.NewRequestWithContext(c.Request.Context(), "GET", proxyURL, nil)
+	if err != nil {
+		log.Printf("Failed to create rendered list proxy request: %v", err)
+		apiServerError(c, fmt.Errorf("internal error"))
+		return
+	}
+
+	resp, err := h.client.Do(proxyReq)
+	if err != nil {
+		log.Printf("Rendered list request failed: %v", err)
+		apiError(c, http.StatusServiceUnavailable,
+			"Merge server is unavailable",
+			"RENDER_SERVER_UNAVAILABLE")
+		return
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Failed to read rendered list response: %v", err)
+		apiServerError(c, fmt.Errorf("internal error"))
+		return
+	}
+
+	c.Data(resp.StatusCode, "application/json", respBody)
+}
 
 // DeleteMergedVideo proxies the delete request to the Python merge server
 func (h *MergeHandler) DeleteMergedVideo(c *gin.Context) {

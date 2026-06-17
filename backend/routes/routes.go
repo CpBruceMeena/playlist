@@ -60,9 +60,11 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient, ca
 		v1.GET("/songs", songsHandler.ListSongs)
 		v1.DELETE("/songs/:id", songsHandler.DeleteSong)
 
-		// Video merge (proxies to Python merge server on port 5002)
+		// Video merge + render (proxies to Python merge server on port 5002)
 		v1.POST("/merge", mergeHandler.Merge)
+		v1.POST("/render", mergeHandler.Render)
 		v1.GET("/merged", mergeHandler.ListMergedVideos)
+		v1.GET("/rendered", mergeHandler.ListRenderedVideos)
 		v1.DELETE("/merged/:id", mergeHandler.DeleteMergedVideo)
 		v1.GET("/merged/:filename", mergeHandler.ServeMergedFile)
 

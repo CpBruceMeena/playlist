@@ -18,6 +18,8 @@ import subprocess
 import tempfile
 import shutil
 import re
+import threading
+import time
 import logging
 from pathlib import Path
 from datetime import datetime, timezone
@@ -290,6 +292,200 @@ def handle_merge():
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
+@app.route("/api/v1/render", methods=["POST"])
+def handle_render():
+    """
+    Accept a list of videos and start an async render pipeline.
+    Returns immediately with status "processing". Poll GET /api/v1/rendered
+    to track progress.
+    """
+    data = request.get_json(silent=True)
+    if not data or "videos" not in data:
+        return jsonify({"error": {"message": "Missing 'videos' field", "code": "INVALID_REQUEST"}}), 400
+
+    videos = data["videos"]
+    if not isinstance(videos, list) or len(videos) < 1:
+        return jsonify({"error": {"message": "At least 1 video is required", "code": "INVALID_REQUEST"}}), 400
+
+    options = data.get("options", {})
+    grade_mode = options.get("grade", "auto")
+    quality = options.get("quality", "final")
+    render_name = data.get("name", "").strip()
+
+    job_id = uuid.uuid4().hex[:16]
+    display_title = render_name if render_name else (
+        sanitize_filename(videos[0].get("title", "")).replace("_", " ") + " (Polishing)"
+    )
+
+    logger.info(f"[{job_id}] Queued render of {len(videos)} videos (grade={grade_mode}, quality={quality})")
+
+    # ── Write processing metadata immediately ──
+    processing_meta = {
+        "id": job_id,
+        "status": "processing",
+        "title": display_title,
+        "songs": [{"id": v.get("id", ""), "title": v.get("title", "")} for v in videos],
+        "songCount": len(videos),
+        "renderOptions": {"grade": grade_mode, "quality": quality},
+        "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+
+    meta_path = METADATA_DIR / f"{job_id}.json"
+    with open(meta_path, "w") as f:
+        json.dump(processing_meta, f)
+
+    # ── Start background render thread ──
+    thread = threading.Thread(
+        target=_run_render_background,
+        args=(job_id, videos, grade_mode, quality, render_name, display_title),
+        daemon=True,
+    )
+    thread.start()
+
+    return jsonify({"data": {
+        "id": job_id,
+        "status": "processing",
+        "title": display_title,
+        "songCount": len(videos),
+        "createdAt": processing_meta["createdAt"],
+        "renderOptions": {"grade": grade_mode, "quality": quality},
+    }})
+
+
+def _run_render_background(job_id: str, videos: list, grade_mode: str, quality: str, render_name: str, display_title: str):
+    """Run the full render pipeline in a background thread."""
+    logger.info(f"[{job_id}] Background render thread started")
+    work_dir = Path(tempfile.mkdtemp(prefix=f"render_{job_id}_"))
+    downloaded = []
+
+    def _update_meta(**kwargs):
+        """Update the metadata sidecar file."""
+        meta_path = METADATA_DIR / f"{job_id}.json"
+        try:
+            with open(meta_path) as f:
+                meta = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            meta = {}
+        meta.update(kwargs)
+        with open(meta_path, "w") as f:
+            json.dump(meta, f)
+
+    def _mark_error(message: str):
+        _update_meta(status="error", error=message)
+        logger.error(f"[{job_id}] Render failed: {message}")
+
+    try:
+        # ── Download each video ──
+        for i, video in enumerate(videos):
+            vid_id = video.get("id", "")
+            vid_title = video.get("title", f"video_{i}")
+
+            if not vid_id:
+                logger.warning(f"[{job_id}] Skipping video {i}: no ID")
+                continue
+
+            output_template = str(work_dir / f"source_{i}.%(ext)s")
+            video_path = download_video(vid_id, output_template)
+
+            if video_path and os.path.exists(video_path):
+                downloaded.append({"index": i, "id": vid_id, "title": vid_title, "path": video_path})
+                logger.info(f"[{job_id}] Downloaded video {i}: {vid_title}")
+            else:
+                logger.warning(f"[{job_id}] Failed to download video {i}: {vid_id}")
+
+        if not downloaded:
+            _mark_error("Could not download any videos")
+            return
+
+        # ── Build EDL ──
+        sources = {}
+        ranges = []
+        for item in downloaded:
+            key = f"src_{item['index']}"
+            sources[key] = item["path"]
+            duration = get_video_duration(item["path"])
+            ranges.append({
+                "source": key,
+                "start": 0,
+                "end": int(duration) if duration > 0 else 300,
+                "note": item["title"]
+            })
+
+        edl = {
+            "sources": sources,
+            "ranges": ranges,
+            "grade": grade_mode if grade_mode else "none",
+            "overlays": [],
+            "subtitles": None
+        }
+
+        edl_path = work_dir / "edl.json"
+        with open(edl_path, "w") as f:
+            json.dump(edl, f, indent=2)
+
+        logger.info(f"[{job_id}] EDL written with {len(ranges)} segments")
+
+        # ── Determine output path ──
+        safe_name = sanitize_filename(render_name) if render_name else sanitize_filename(downloaded[0]["title"])
+        output_filename = f"{safe_name}_{job_id[:8]}.mp4"
+        output_path = MERGED_DIR / output_filename
+
+        # ── Build render command ──
+        render_script = SCRIPT_DIR / "scripts" / "video_helpers" / "render.py"
+        render_cmd = [
+            sys.executable or "python3",
+            str(render_script),
+            str(edl_path),
+            "-o", str(output_path),
+        ]
+
+        if quality == "preview":
+            render_cmd.append("--preview")
+        elif quality == "draft":
+            render_cmd.append("--draft")
+
+        render_cmd.append("--no-subtitles")
+
+        logger.info(f"[{job_id}] Running render pipeline...")
+        result = subprocess.run(render_cmd, check=True, capture_output=True, text=True, timeout=1800)
+
+        if not output_path.exists():
+            raise RuntimeError(f"Output file not found: {output_path}")
+
+        # ── Gather result metadata ──
+        total_duration = sum(get_video_duration(item["path"]) for item in downloaded)
+        file_size = output_path.stat().st_size
+        first_thumbnail = videos[0].get("thumbnailUrl", "") if videos else ""
+
+        final_title = render_name if render_name else (
+            sanitize_filename(downloaded[0]["title"]).replace("_", " ") + " (Compilation)"
+        )
+
+        _update_meta(
+            status="completed",
+            filename=output_filename,
+            title=final_title,
+            thumbnailUrl=first_thumbnail,
+            duration=int(total_duration),
+            fileSize=file_size,
+            videoUrl=f"/playlist/api/v1/merged/{output_filename}",
+        )
+
+        logger.info(f"[{job_id}] Render complete: {output_filename} ({file_size / 1024 / 1024:.1f}MB)")
+
+    except subprocess.TimeoutExpired:
+        _mark_error("Render timed out after 30 minutes")
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr[:1000] if e.stderr else "no output"
+        _mark_error(f"Render pipeline failed: {stderr[:300]}")
+    except Exception as e:
+        import traceback
+        _mark_error(f"{e}")
+        logger.error(f"[{job_id}] Render error: {e}\n{traceback.format_exc()}")
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
 @app.route("/api/merged", methods=["GET"])
 def list_merged():
     """List all merged videos with their metadata."""
@@ -308,6 +504,46 @@ def list_merged():
                 logger.warning(f"Error reading metadata file {meta_file}: {e}")
 
     return jsonify({"data": merged_list})
+
+
+@app.route("/api/v1/rendered", methods=["GET"])
+def list_rendered():
+    """
+    List render/polish items:
+    - Processing items (status="processing") — in-progress renders
+    - Completed items (status="completed" with renderOptions) — finished polished videos
+    - Error items (status="error") — failed renders
+    Sorted by createdAt descending.
+    """
+    rendered_list = []
+
+    if METADATA_DIR.exists():
+        for meta_file in sorted(METADATA_DIR.glob("*.json"), key=os.path.getmtime, reverse=True):
+            try:
+                with open(meta_file) as f:
+                    metadata = json.load(f)
+
+                status = metadata.get("status", "")
+
+                # Processing items (no file yet)
+                if status == "processing":
+                    rendered_list.append(metadata)
+                    continue
+
+                # Error items
+                if status == "error":
+                    rendered_list.append(metadata)
+                    continue
+
+                # Completed items: must have renderOptions and existing file
+                if metadata.get("renderOptions"):
+                    if (MERGED_DIR / metadata.get("filename", "")).exists():
+                        rendered_list.append(metadata)
+
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"Error reading metadata file {meta_file}: {e}")
+
+    return jsonify({"data": rendered_list})
 
 
 @app.route("/api/merged/<id>", methods=["DELETE"])
