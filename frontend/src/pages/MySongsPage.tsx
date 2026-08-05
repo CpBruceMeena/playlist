@@ -34,7 +34,7 @@ function songToYouTubeVideo(song: SavedSong) {
     channelId: "",
     viewCount: 0,
     likeCount: 0,
-    publishedAt: song.savedAt,
+    publishedAt: song.createdAt,
     tags: [] as string[],
     videoType: "music" as const,
   };
@@ -229,7 +229,7 @@ const SongTile = memo(function SongTile({
 
 export function MySongsPage() {
   const navigate = useNavigate();
-  const { songs, isLoaded, loadFromStorage, removeSong, clearAll } =
+  const { songs, isLoaded, loadSongs, removeSong, clearAll } =
     useSavedSongsStore();
 
   const [singerFilter, setSingerFilter] = useState<string | null>(null);
@@ -249,8 +249,8 @@ export function MySongsPage() {
   const savePlaylistToStore = useSavedPlaylistsStore((s) => s.savePlaylist);
 
   useEffect(() => {
-    loadFromStorage();
-  }, [loadFromStorage]);
+    loadSongs();
+  }, [loadSongs]);
 
   // Reset filter when songs change (e.g., after delete)
   useEffect(() => {
@@ -306,8 +306,8 @@ export function MySongsPage() {
   // ── Save as Playlist ──
 
   const doSavePlaylist = useCallback(
-    (videos: ReturnType<typeof songToYouTubeVideo>[], name: string) => {
-      const result = savePlaylistToStore(
+    async (videos: ReturnType<typeof songToYouTubeVideo>[], name: string) => {
+      const result = await savePlaylistToStore(
         name,
         "",
         {
@@ -330,7 +330,7 @@ export function MySongsPage() {
       setSelectedIds([]);
       return true;
     },
-    [savePlaylistToStore, navigate],
+    [savePlaylistToStore],
   );
 
 

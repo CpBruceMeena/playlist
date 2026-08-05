@@ -5,11 +5,17 @@ interface Suggestion {
   onClick: () => void;
 }
 
+interface EmptyStateAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface EmptyStateProps {
   title?: string;
   message?: string;
   suggestions?: (Suggestion | string)[];
   variant?: "full" | "inline";
+  action?: EmptyStateAction;
 }
 
 const defaultSuggestions: string[] = [
@@ -24,6 +30,7 @@ export function EmptyState({
   message = "Describe what you want to hear and we'll build a YouTube playlist from it.",
   suggestions,
   variant = "full",
+  action,
 }: EmptyStateProps) {
   const displaySuggestions = suggestions ?? defaultSuggestions;
 
@@ -76,6 +83,14 @@ export function EmptyState({
             );
           })}
         </div>
+      )}
+      {action && (
+        <button
+          onClick={action.onClick}
+          className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-500 active:scale-95"
+        >
+          {action.label}
+        </button>
       )}
     </>
   );

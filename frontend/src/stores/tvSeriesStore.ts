@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { TVSeries, SavedTVSeries, FilterCriteria } from "@playlist/types";
-import { fetchTVSeries, generateTVSeriesPlaylist, fetchSavedTVSeries, toggleSaveTVSeries, deleteSavedTVSeries } from "../api/tvSeries";
+import { fetchTVSeries, generateTVSeriesPlaylist, fetchSavedTVSeries, toggleSaveTVSeries } from "../api/tvSeries";
 import { usePlaylistStore } from "./playlistStore";
 
 interface TVSeriesState {

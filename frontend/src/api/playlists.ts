@@ -20,6 +20,26 @@ export interface PlaylistListItem {
   name: string;
   query: string;
   videoCount: number;
+  thumbnailUrl?: string;
+  createdAt: string;
+}
+
+export interface PlaylistVideoDto {
+  id: string;
+  title: string;
+  channelId?: string;
+  channelTitle: string;
+  thumbnailUrl?: string;
+  durationSeconds: number;
+  viewCount: number;
+}
+
+export interface PlaylistDetail {
+  id: string;
+  name: string;
+  query: string;
+  filters: FilterCriteria;
+  videos: PlaylistVideoDto[];
   createdAt: string;
 }
 
@@ -45,10 +65,20 @@ export async function listPlaylists(): Promise<PlaylistListResponse> {
   return apiClient.get<PlaylistListResponse>("/playlists");
 }
 
-export async function getPlaylist(id: string): Promise<unknown> {
-  return apiClient.get(`/playlists/${id}`);
+export async function getPlaylist(id: string): Promise<PlaylistDetail> {
+  return apiClient.get<PlaylistDetail>(`/playlists/${encodeURIComponent(id)}`);
+}
+
+export async function renamePlaylist(
+  id: string,
+  name: string,
+): Promise<{ id: string; name: string }> {
+  return apiClient.patch<{ id: string; name: string }>(
+    `/playlists/${encodeURIComponent(id)}`,
+    { name },
+  );
 }
 
 export async function deletePlaylist(id: string): Promise<void> {
-  await apiClient.delete(`/playlists/${id}`);
+  await apiClient.delete(`/playlists/${encodeURIComponent(id)}`);
 }

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "../ui/Input";
-import { Button } from "../ui/Button";
 import { Spinner } from "../ui/Spinner";
 import { FilterPanel } from "./FilterPanel";
 import { useTVSeriesStore } from "../../stores/tvSeriesStore";

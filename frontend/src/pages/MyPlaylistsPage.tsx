@@ -193,7 +193,7 @@ export function MyPlaylistsPage() {
   const {
     playlists,
     isLoaded,
-    loadFromStorage,
+    loadPlaylists,
     deletePlaylist,
     renamePlaylist,
   } = useSavedPlaylistsStore();
@@ -216,8 +216,8 @@ export function MyPlaylistsPage() {
   const [downloadPlaylistError, setDownloadPlaylistError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadFromStorage();
-  }, [loadFromStorage]);
+    loadPlaylists();
+  }, [loadPlaylists]);
 
   const handlePlayPlaylist = (playlist: SavedPlaylist) => {
     if (playlist.videos.length === 0) return;

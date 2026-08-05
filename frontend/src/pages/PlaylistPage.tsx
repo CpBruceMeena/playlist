@@ -15,7 +15,6 @@ import { useFilterStore } from "../stores/filterStore";
 import { useSingerStore, hasSingerAttribution } from "../stores/singerStore";
 import { startDownload } from "../api/downloads";
 import { triggerBrowserDownload } from "../api/browserDownload";
-import { savePlaylistToBackend } from "../api/playlists";
 import { startMerge } from "../api/mergeRunner";
 import type { YouTubeVideo, FilterCriteria } from "@playlist/types";
 
@@ -254,37 +253,16 @@ export function PlaylistPage() {
     try {
       const filters = useFilterStore.getState().getFilterPayload();
 
-      // Save to backend first (authoritative save)
-      try {
-        await savePlaylistToBackend(
-          playlistName.trim(),
-          query,
-          filters,
-          activeYouTubeVideos
-        );
-      } catch (backendErr) {
-        const backendMsg =
-          backendErr instanceof Error ? backendErr.message : "Backend save failed";
-
-        // Check for duplicate from backend
-        if (backendMsg.includes("already exists")) {
-          setSaveError(backendMsg);
-          setSaving(false);
-          return;
-        }
-      }
-
-      // Save locally
-      const localResult = savePlaylist(
+      // Persist to the backend (authoritative save)
+      const result = await savePlaylist(
         playlistName.trim(),
         query,
         filters,
         activeYouTubeVideos
       );
 
-      if (typeof localResult === "object" && localResult !== null && "error" in localResult) {
-        setSaveError(localResult.error as string);
-        setSaving(false);
+      if ("error" in result) {
+        setSaveError(result.error);
         return;
       }
 
@@ -300,9 +278,9 @@ export function PlaylistPage() {
 
   // ── Add selected to My Songs ──
 
-  const handleAddToMySongs = useCallback(() => {
+  const handleAddToMySongs = useCallback(async () => {
     if (selectedVideos.length === 0) return;
-    const result = addSongsToMySongs(selectedVideos);
+    const result = await addSongsToMySongs(selectedVideos);
     if ("error" in result) {
       return;
     }
@@ -328,8 +306,8 @@ export function PlaylistPage() {
   // ── Save selected as Playlist ──
 
   const doSavePlaylist = useCallback(
-    (name: string, videosToSave: YouTubeVideo[]) => {
-      const result = savePlaylist(name, "", EMPTY_FILTERS, videosToSave);
+    async (name: string, videosToSave: YouTubeVideo[]) => {
+      const result = await savePlaylist(name, "", EMPTY_FILTERS, videosToSave);
 
       if ("error" in result) {
         return false;
@@ -339,7 +317,7 @@ export function PlaylistPage() {
       setSelectedIds([]);
       return true;
     },
-    [savePlaylist, navigate],
+    [savePlaylist],
   );
 
 
@@ -620,7 +598,7 @@ export function PlaylistPage() {
             </h2>
             <p className="mb-5 text-sm text-neutral-400">
               {activeVideos.length} video{activeVideos.length !== 1 ? "s" : ""}{" "}
-              will be saved to your browser.
+              will be saved to your library.
             </p>
 
             <Input

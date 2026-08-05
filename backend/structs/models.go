@@ -136,16 +136,23 @@ type SavedTVSeries struct {
 	CreatedAt       string `json:"createdAt"`
 }
 
-// SavedSong stores user-saved songs (in-memory only, not in DB)
+// SavedSong stores user-saved songs in the database
+// A song is uniquely identified by its YouTube video ID
+// (use video_id in queries instead of the numeric primary key)
 type SavedSong struct {
-	ID              string `json:"id"`
-	VideoID         string `json:"videoId"`
-	Title           string `json:"title"`
-	ChannelTitle    string `json:"channelTitle"`
-	ThumbnailURL    string `json:"thumbnailUrl"`
-	Duration        string `json:"duration"`
-	DurationSeconds int    `json:"durationSeconds"`
-	SingerName      string `json:"singerName"`
-	SingerID        string `json:"singerId"`
-	CreatedAt       string `json:"createdAt"`
+	ID              uint      `gorm:"primaryKey;autoIncrement" json:"id,string"`
+	VideoID         string    `gorm:"type:varchar(50);column:video_id;uniqueIndex;not null" json:"videoId"`
+	Title           string    `gorm:"type:varchar(500);not null" json:"title"`
+	ChannelTitle    string    `gorm:"type:varchar(255);column:channel_title;not null" json:"channelTitle"`
+	ThumbnailURL    string    `gorm:"type:varchar(500);column:thumbnail_url" json:"thumbnailUrl"`
+	Duration        string    `gorm:"type:varchar(50)" json:"duration"`
+	DurationSeconds int       `gorm:"column:duration_seconds" json:"durationSeconds"`
+	SingerName      string    `gorm:"type:varchar(255);column:singer_name" json:"singerName,omitempty"`
+	SingerID        string    `gorm:"type:varchar(100);column:singer_id" json:"singerId,omitempty"`
+
+	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime;index" json:"createdAt"`
+}
+
+func (SavedSong) TableName() string {
+	return "saved_songs"
 }

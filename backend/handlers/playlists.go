@@ -187,7 +187,13 @@ func (h *PlaylistHandler) GetPlaylist(c *gin.Context) {
 		return
 	}
 
-	// Transform PlaylistVideo to a JSON-friendly format matching the Android YouTubeVideoDto
+	// Parse stored filters back into a structured object
+	var filters structs.FilterCriteria
+	if playlist.Filters != "" {
+		_ = json.Unmarshal([]byte(playlist.Filters), &filters)
+	}
+
+	// Transform PlaylistVideo to a JSON-friendly format matching the frontend YouTubeVideo shape
 	type playlistVideoResponse struct {
 		ID              string `json:"id"`
 		Title           string `json:"title"`
@@ -215,6 +221,7 @@ func (h *PlaylistHandler) GetPlaylist(c *gin.Context) {
 		"id":        fmt.Sprintf("%d", playlist.ID),
 		"name":      playlist.Name,
 		"query":     playlist.Query,
+		"filters":   filters,
 		"videos":    videoResponses,
 		"createdAt": playlist.CreatedAt,
 	})
