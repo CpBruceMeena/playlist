@@ -21,7 +21,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient, ca
 	tvSeriesHandler := handlers.NewTVSeriesHandler(db, ytClient, filterService, cacheSvc)
 	savedTVSeriesHandler := handlers.NewSavedTVSeriesHandler()
 	playlistHandler := handlers.NewPlaylistHandler(db)
-	songsHandler := handlers.NewSongsHandler()
+	songsHandler := handlers.NewSongsHandler(db)
 	mergeHandler := handlers.NewMergeHandler()
 	downloadHandler := handlers.NewDownloadHandler()
 
@@ -59,6 +59,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, ytClient *clients.YouTubeClient, ca
 		v1.POST("/songs", songsHandler.SaveSong)
 		v1.GET("/songs", songsHandler.ListSongs)
 		v1.DELETE("/songs/:id", songsHandler.DeleteSong)
+		v1.DELETE("/songs", songsHandler.ClearSongs)
 
 		// Video merge + render (proxies to Python merge server on port 5002)
 		v1.POST("/merge", mergeHandler.Merge)

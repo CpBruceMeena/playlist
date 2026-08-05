@@ -203,7 +203,7 @@ export interface SavedSong {
   durationSeconds: number;
   singerName?: string;
   singerId?: string;
-  savedAt: string;
+  createdAt: string;
 }
 
 // ─── Merge Types ──────────────────────────────────────────────

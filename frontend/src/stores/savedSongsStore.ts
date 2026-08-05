@@ -1,20 +1,28 @@
 import { create } from "zustand";
 import type { YouTubeVideo, SavedSong } from "@playlist/types";
+import {
+  saveSongToBackend,
+  listSavedSongs,
+  deleteSavedSong,
+  clearAllSavedSongs,
+} from "../api/songs";
 
 const STORAGE_KEY = "saved-songs";
-const SINGER_REPAIR_KEY = "saved-songs-repair-v1";
 const MAX_SONGS = 500;
 
 interface SavedSongsState {
   songs: SavedSong[];
   isLoaded: boolean;
+  isLoading: boolean;
+  error: string | null;
 
   // Actions
-  loadFromStorage: () => void;
-  addSongs: (videos: YouTubeVideo[]) => { count: number } | { error: string };
-  removeSong: (id: string) => void;
-  clearAll: () => void;
-  repairSingerNames: (notify?: (msg: string) => void) => void;
+  loadSongs: () => Promise<void>;
+  addSongs: (
+    videos: YouTubeVideo[],
+  ) => Promise<{ count: number } | { error: string }>;
+  removeSong: (id: string) => Promise<void>;
+  clearAll: () => Promise<void>;
 }
 
 function readFromStorage(): SavedSong[] {
@@ -23,7 +31,11 @@ function readFromStorage(): SavedSong[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed;
+    return parsed.map((s: Record<string, unknown>) => ({
+      ...s,
+      // Normalize legacy items that stored the save date as `savedAt`
+      createdAt: (s.createdAt as string) ?? (s.savedAt as string) ?? new Date().toISOString(),
+    }) as SavedSong);
   } catch {
     return [];
   }
@@ -38,102 +50,146 @@ function writeToStorage(songs: SavedSong[]): boolean {
   }
 }
 
-function deduplicate(existing: SavedSong[], newVideos: YouTubeVideo[]): SavedSong[] {
-  const existingIds = new Set(existing.map((s) => s.videoId));
-  const now = new Date().toISOString();
-
-  const fresh: SavedSong[] = newVideos
-    .filter((v) => !existingIds.has(v.id))
-    .map((v) => ({
-      id: crypto.randomUUID(),
-      videoId: v.id,
-      title: v.title,
-      channelTitle: v.channelTitle,
-      thumbnailUrl: v.thumbnailUrl,
-      duration: v.duration,
-      durationSeconds: v.durationSeconds,
-      singerName: v.singerName,
-      singerId: v.singerId,
-      savedAt: now,
-    }));
-
-  return [...existing, ...fresh];
+/** Convert a previously saved song back into a YouTubeVideo for re-saving */
+function savedSongToYouTubeVideo(song: SavedSong): YouTubeVideo {
+  return {
+    id: song.videoId,
+    title: song.title,
+    description: "",
+    channelId: "",
+    channelTitle: song.channelTitle,
+    thumbnailUrl: song.thumbnailUrl,
+    duration: song.duration,
+    durationSeconds: song.durationSeconds,
+    viewCount: 0,
+    likeCount: 0,
+    publishedAt: song.createdAt,
+    tags: [],
+    videoType: "music",
+    singerName: song.singerName,
+    singerId: song.singerId,
+  };
 }
 
 export const useSavedSongsStore = create<SavedSongsState>((set, get) => ({
   songs: [],
   isLoaded: false,
+  isLoading: false,
+  error: null,
 
-  loadFromStorage: () => {
+  loadSongs: async () => {
     if (get().isLoaded) return;
-    const songs = readFromStorage();
-    set({ songs, isLoaded: true });
+    set({ isLoading: true, error: null });
 
-    // One-time repair: clear singer names that were misattributed by old bug
-    get().repairSingerNames();
+    // One-time migration: push any songs saved in localStorage (pre-DB builds)
+    // up to the backend so nothing is lost.
+    const localSongs = readFromStorage();
+    const migrated: SavedSong[] = [];
+
+    try {
+      const remote = await listSavedSongs();
+
+      const remoteIds = new Set(remote.map((s) => s.videoId));
+      const failed: SavedSong[] = [];
+      for (const song of localSongs) {
+        if (remoteIds.has(song.videoId)) continue;
+        try {
+          migrated.push(
+            await saveSongToBackend(
+              savedSongToYouTubeVideo(song),
+              song.singerName,
+              song.singerId,
+            ),
+          );
+        } catch (err) {
+          // Duplicates (already in the DB) are safe to drop;
+          // keep un-migrated items so they are never silently lost
+          if ((err as { code?: string })?.code !== "DUPLICATE_SONG") {
+            failed.push(song);
+          }
+        }
+      }
+
+      if (localSongs.length > 0) {
+        // Only clear localStorage once everything migrated successfully
+        writeToStorage(failed);
+      }
+
+      set({
+        songs: [...remote, ...migrated],
+        isLoaded: true,
+        isLoading: false,
+      });
+    } catch (err) {
+      // Backend unavailable — fall back to localStorage so the UI still works
+      set({
+        songs: localSongs,
+        isLoaded: true,
+        isLoading: false,
+        error: err instanceof Error ? err.message : "Failed to load saved songs",
+      });
+    }
   },
 
-  addSongs: (videos: YouTubeVideo[]) => {
+  addSongs: async (videos) => {
     if (videos.length === 0) {
       return { error: "No videos to save" };
     }
 
     const current = get().songs;
+    const existingIds = new Set(current.map((s) => s.videoId));
+    const fresh = videos.filter((v) => !existingIds.has(v.id));
 
-    if (current.length >= MAX_SONGS) {
+    if (fresh.length === 0) {
+      return { count: 0 };
+    }
+
+    if (current.length + fresh.length > MAX_SONGS) {
       return { error: `Maximum ${MAX_SONGS} songs allowed` };
     }
 
-    const updated = deduplicate(current, videos);
-    const success = writeToStorage(updated);
-
-    if (!success) {
-      return {
-        error: "Could not save songs. Storage may be full or unavailable.",
-      };
+    const saved: SavedSong[] = [];
+    for (const video of fresh) {
+      try {
+        saved.push(
+          await saveSongToBackend(video, video.singerName, video.singerId),
+        );
+      } catch (err) {
+        // Keep anything that was already persisted so the UI stays in sync
+        if (saved.length > 0) {
+          set({ songs: [...current, ...saved] });
+        }
+        return {
+          error:
+            err instanceof Error ? err.message : "Failed to save songs",
+        };
+      }
     }
 
-    set({ songs: updated });
-    return { count: updated.length - current.length };
+    set({ songs: [...current, ...saved] });
+    return { count: saved.length };
   },
 
-  removeSong: (id) => {
+  removeSong: async (id) => {
     const current = get().songs;
     const updated = current.filter((s) => s.id !== id);
     if (updated.length === current.length) return;
-    writeToStorage(updated);
+
+    // Optimistic removal — revert if the backend rejects it
     set({ songs: updated });
-  },
-
-  clearAll: () => {
-    writeToStorage([]);
-    set({ songs: [] });
-  },
-
-  repairSingerNames: (notify) => {
-    // Check if repair was already done
-    if (localStorage.getItem(SINGER_REPAIR_KEY)) return;
-
-    const current = get().songs;
-    const songsWithSingerNames = current.filter((s) => s.singerName);
-
-    if (songsWithSingerNames.length === 0) {
-      // No songs with singer names to repair, mark as done
-      localStorage.setItem(SINGER_REPAIR_KEY, "done");
-      return;
+    try {
+      await deleteSavedSong(id);
+    } catch {
+      set({ songs: current });
     }
+  },
 
-    // Clear all singerName and singerId from existing songs
-    const repaired: SavedSong[] = current.map((s) => ({
-      ...s,
-      singerName: undefined,
-      singerId: undefined,
-    }));
-
-    writeToStorage(repaired);
-    set({ songs: repaired });
-    localStorage.setItem(SINGER_REPAIR_KEY, "done");
-
-    notify?.(`Cleared singer names for ${songsWithSingerNames.length} song${songsWithSingerNames.length !== 1 ? "s" : ""} to fix misattribution. Future saves will use correct names.`);
+  clearAll: async () => {
+    try {
+      await clearAllSavedSongs();
+    } catch {
+      // Best-effort: clear locally even if the backend call fails
+    }
+    set({ songs: [] });
   },
 }));

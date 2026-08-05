@@ -25,6 +25,7 @@ func EnsureTables(db *gorm.DB) error {
 		{Model: &structs.Singer{}, SeedFunc: SeedSingers},
 		{Model: &structs.TVSeries{}, SeedFunc: SeedTVSeries},
 		{Model: &structs.YouTubeCache{}},
+		{Model: &structs.SavedSong{}},
 	}
 
 	for _, table := range tables {
@@ -67,6 +68,8 @@ func getModelName(model interface{}) string {
 		return "tv_series"
 	case *structs.YouTubeCache:
 		return "youtube_cache"
+	case *structs.SavedSong:
+		return "saved_songs"
 	default:
 		return "unknown"
 	}

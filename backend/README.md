@@ -21,7 +21,7 @@ Go API server built with Gin, GORM, and PostgreSQL.
 │   ├── tv_series.go     # TV series listing + episode generation
 │   ├── tv_series_saved.go # Saved TV series (in-memory)
 │   ├── singers.go       # Singer database endpoints
-│   ├── songs.go         # Saved songs (in-memory)
+│   ├── songs.go         # Saved songs (DB-backed)
 │   ├── playlists.go     # Playlist CRUD
 │   ├── merge.go         # Video merge proxy
 │   ├── download.go      # Video download proxy

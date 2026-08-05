@@ -55,33 +55,13 @@ running (port 5002)
 - Queue (selection mode): frontend/src/components/player/QueueList.tsx
 
 ## Branch
-feature-android-app
+feat/db-persistence
 
-## Android App
-- Location: /mobile
-- Status: QA PASSED — No crashes, all API connections working
-- APK: mobile/app/build/outputs/apk/debug/app-debug.apk (58MB)
-- Unit Tests: 20 passing (JUnit + Mockk + Turbine)
-- API base: https://helpful-supposedly-moose.ngrok-free.app/api/v1/
-- Backend Port: 3001 (default), ngrok tunnels to this
-- Theme: Obsidian Neon (dark, glassmorphism, violet/cyan)
-- Screens: Home, Singers, Playlists, Player, Songs (coming soon), Merge
-- No local database — all data via backend API
-- Nginx config: mobile/nginx.conf (routes Go 8080 + Python 5002)
-- Docs: cabinet/cpo/feature-manager/feature-android-app/
+## Data Persistence
+- Saved songs (My Songs) and saved playlists are persisted in PostgreSQL via the Go backend
+- Frontend stores (`savedSongsStore`, `savedPlaylistsStore`) call the backend API — no longer localStorage-only
+- One-time migration on first load: legacy localStorage data is pushed to the backend
+- Backend: `saved_songs` table (songs.go handler), `playlists` + `playlist_videos` tables (playlists.go handler)
 
-## QA Findings (2026-06-05)
-### Fixed Bugs
-1. Retrofit crash: `baseUrl` missing trailing slash → added `/`
-2. NullPointerException on Singers screen: Backend wraps all responses in `{ data: ... }` but DTOs expected top-level fields → added `ApiResponseDto<T>` wrapper across all 9 API endpoints
-3. Playlists list crash: `{ data: { playlists: [...] } }` format mismatched `{ data: [...] }` expectation → added `PlaylistListResponseDto`
-
-### Verified Working
-- ✅ Backend connectivity via ngrok (200 OK)
-- ✅ App launches without crash
-- ✅ Singers tab loads singer list from API
-- ✅ Playlists tab loads playlist list from API
-- ✅ Navigation through Home→Singers→Playlists
-- ✅ No FATAL EXCEPTION after navigation
-- ✅ `./gradlew test` — BUILD SUCCESSFUL
-- ✅ `./gradlew assembleDebug` — BUILD SUCCESSFUL
+## Removed
+- Android app (`/mobile`) removed from the repo — out of scope, backend + frontend only

@@ -9,6 +9,7 @@ import { PlaylistPlayerDialog } from "../components/player/PlaylistPlayerDialog"
 import { MergeOrderDialog } from "../components/processing/MergeOrderDialog";
 import { useTVSeriesStore } from "../stores/tvSeriesStore";
 import { useFilterStore } from "../stores/filterStore";
+import type { FilterCriteria } from "@playlist/types";
 import { useSavedEpisodesStore, type SavedEpisode } from "../stores/savedEpisodesStore";
 import { useSavedPlaylistsStore } from "../stores/savedPlaylistsStore";
 import { startDownload } from "../api/downloads";
@@ -170,12 +171,12 @@ const EpisodeTile = memo(function EpisodeTile({
   );
 });
 
-const EMPTY_FILTERS = {
+const EMPTY_FILTERS: FilterCriteria = {
   query: "",
   videoTypes: ["music"],
-  includeKeywords: [] as string[],
-  excludeKeywords: [] as string[],
-  uploadDate: { type: "any" as const },
+  includeKeywords: [],
+  excludeKeywords: [],
+  uploadDate: { type: "any" },
   maxResults: 50,
   safeSearch: true,
 };
@@ -317,7 +318,7 @@ export function TVSeriesPage() {
   }, []);
 
   const handleSaveOrderConfirm = useCallback(
-    (ordered: { id: string; videoId: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[], playlistName: string) => {
+    async (ordered: { id: string; videoId: string; title: string; thumbnailUrl?: string; durationSeconds?: number }[], playlistName: string) => {
       setShowSaveOrderDialog(false);
       const episodeMap = new Map(selectedEpisodes.map((ep) => [ep.id, ep]));
       const orderedEpisodes = ordered
@@ -345,7 +346,7 @@ export function TVSeriesPage() {
         singerId: undefined as string | undefined,
       }));
 
-      const result = savePlaylistToStore(name, "", EMPTY_FILTERS, videos);
+      const result = await savePlaylistToStore(name, "", EMPTY_FILTERS, videos);
       if (!("error" in result)) {
         setIsSelecting(false);
         setSelectedIds([]);
