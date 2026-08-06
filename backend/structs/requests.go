@@ -73,7 +73,7 @@ type GenerateResponse struct {
 // CreatePlaylistRequest mirrors the TypeScript CreatePlaylistRequest
 type CreatePlaylistRequest struct {
 	Name    string         `json:"name" binding:"required,min=1,max=100"`
-	Query   string         `json:"query" binding:"required"`
+	Query   string         `json:"query" binding:"max=200"` // optional — playlists saved from curated selections have no search query
 	Filters FilterCriteria `json:"filters"`
 	Videos  []YouTubeVideo `json:"videos" binding:"required"`
 }
